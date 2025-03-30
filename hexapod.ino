@@ -1,4 +1,3 @@
-// spider_esp32_3_mg90_6.ino
 #include <WiFi.h>
 #include <WebServer.h>
 #include <WebSocketsServer.h>
@@ -73,6 +72,7 @@ void setup() {
 
   EEPROM.begin(512);
   Serial.println("EEPROM initialized");
+  webSocket.enableHeartbeat(20000, 10000, 2);
 
   WiFi.mode(WIFI_STA);
 
@@ -141,6 +141,17 @@ void setup() {
   Serial.printf("WiFi RSSI: %d dBm\n", WiFi.RSSI());
 
   Pos_INT();  // Переход в начальное положение
+
+  // Обработчик событий WiFi
+  WiFi.onEvent([](WiFiEvent_t event) {
+  switch(event) {
+    case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: // Новое название события
+      Serial.println("WiFi disconnected. Reconnecting...");
+      WiFi.reconnect();
+      break;
+    default: break;
+  }
+});
 }
 
 void printConnectionError() {
@@ -190,83 +201,43 @@ void disableAutoMode() {
 }
 
 void loop() {
-  webSocket.loop();
-  server.handleClient();
+    webSocket.loop();
+    server.handleClient();
 
-  // Только если движение активно
-  if(isMoving) {
-    if(millis() - lastControlUpdate > 20) {
-      gaitController.update();
-      String cmd = servoManager.generate_command(StepSpeed);
-      serialHandler.send_command(cmd);
-      lastControlUpdate = millis();
-    }
-  }
+    static unsigned long lastUpdate = 0;
+    unsigned long now = millis();
 
-  serialHandler.check_response();
-  manage_power();
-}
-
-/* void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
-  switch (type) {
-    case WStype_DISCONNECTED:
-      Serial.printf("[%u] Disconnected!\n", num);
-      break;
-    case WStype_CONNECTED:
-      {
-        IPAddress ip = webSocket.remoteIP(num);
-        Serial.printf("[%u] Connected from %s\n", num, ip.toString().c_str());
-        break;
-      }
-    case WStype_TEXT:
-      {
-        DynamicJsonDocument doc(256);
-        deserializeJson(doc, payload, length);
-        const char* command = doc["cmd"];
-        int value = doc["val"] | 0;
-        handle_command(command, value);
-        break;
-      }
-    default:
-      break;
-  }
-} */
-
-void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
-  switch (type) {
-    case WStype_TEXT:
-      {
-        Serial.printf("Received WS message: %s\n", payload);
-        DynamicJsonDocument doc(256);
-        deserializeJson(doc, payload, length);
-        const char* command = doc["cmd"];
-        int value = doc["val"] | 0;
-        Serial.printf("Command: %s, Value: %d\n", command, value);
-        handle_command(command, value);
-        break;
-      }
-  }
-}
-
-
-/* void Send_Comm() {
-    String cmd;
-    for (int i = 0; i < 32; i++) {
-        int pos = SMov[i] + SAdj[i];
-        pos = constrain(pos, MIN_SERVO_PULSE, MAX_SERVO_PULSE);
-
-        // Пропускаем сервы в дефолтной позиции
-        if (pos != DEFAULT_SERVO_POS) {
-            cmd += "#" + String(i) + "P" + String(pos);
+    if (isMoving && (now - lastUpdate >= 20)) { // 50 Hz
+        gaitController.update();
+        String cmd = servoManager.generate_command(StepSpeed);
+        if (cmd.length() > 0) {
+            serialHandler.send_command(cmd);
         }
+        lastUpdate = now;
     }
 
-    if (cmd.length() == 0) return;
+    serialHandler.check_response();
+    manage_power();
+}
 
-    cmd += "T" + String(map(StepSpeed, 50, 300, 9999, 100)) + "D0\r\n";
-    serialHandler.send_command(cmd);
-    wait_serial_return_ok();
-} */
+void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length) {
+  switch(type) {
+    case WStype_DISCONNECTED:
+      Serial.printf("[%u] Disconnected! Reason: %d\n", num, *payload);
+      break;
+    case WStype_ERROR:
+      Serial.printf("[%u] Error: %s\n", num, payload);
+      break;
+    case WStype_TEXT:
+      Serial.printf("[%u] Received text: %s\n", num, payload);
+      DynamicJsonDocument doc(256);
+      deserializeJson(doc, payload, length);
+      const char* command = doc["cmd"];
+      int value = doc["val"] | 0;
+      handle_command(command, value);
+      break;
+  }
+}
 
 void Send_Comm() {
   String cmd;
@@ -279,48 +250,38 @@ void Send_Comm() {
   wait_serial_return_ok();
 }
 
-
 void wait_serial_return_ok() {
   unsigned long start = millis();
   String response;
   while (millis() - start < COMMAND_TIMEOUT) {
-    while (Serial.available()) {
-      char c = Serial.read();
+    while (Serial1.available()) {
+      char c = Serial1.read();
       response += c;
-      if (response.endsWith("OK")) return;
+      if (response.endsWith("OK")) {
+        Serial.println("Received OK from controller");
+        return;
+      }
     }
-    webSocket.loop();
-    server.handleClient();
-    delay(1);
+    delay(10);
   }
-  Serial.println("Timeout waiting for OK");
+  Serial.println("Timeout! Controller response: " + response);
 }
 
 void manage_power() {
-  static unsigned long lastCheck = 0;
-  if (millis() - lastCheck > 5000) {
-    // Усреднение показаний
-    static float avgVoltage = 0;
-    float rawVoltage = analogReadMilliVolts(A0) / 1000.0;  // Преобразование в вольты
-    float batteryVoltage = rawVoltage * 2.0;               // Учитываем делитель напряжения (коэффициент 2.0)
-    avgVoltage = 0.8 * avgVoltage + 0.2 * batteryVoltage;  // Фильтр
+  static float avgVoltage = 5.0; // Инициализация среднего значения
+  float rawVoltage = analogReadMilliVolts(A0) / 1000.0;
 
-    if (debugMode) {
-      Serial.print("Raw Voltage: ");
-      Serial.print(rawVoltage);
-      Serial.print(" V, Battery Voltage: ");
-      Serial.print(batteryVoltage);
-      Serial.print(" V, Average Voltage: ");
-      Serial.print(avgVoltage);
-      Serial.println(" V");
-    }
+  // Калибровочные коэффициенты (подберите под свой делитель)
+  const float voltageDividerRatio = 2.0;
+  const float calibrationOffset = 0.12;
 
-    if (!debugMode && avgVoltage < 4.5) {
-      Serial.printf("Low battery: %.2f V\n", avgVoltage);
-      enter_low_power_mode();
-    }
+  float batteryVoltage = (rawVoltage * voltageDividerRatio) + calibrationOffset;
+  avgVoltage = 0.8 * avgVoltage + 0.2 * batteryVoltage;
 
-    lastCheck = millis();
+  Serial.printf("Corrected Battery Voltage: %.2f V\n", avgVoltage);
+
+  if (avgVoltage < 4.5) {
+    Serial.println("Critical battery level!");
   }
 }
 
@@ -330,15 +291,23 @@ void enter_low_power_mode() {
 }
 
 void handle_command(const char* command, int value) {
+  Serial.printf("Handling command: %s, value: %d\n", command, value);
+
   if (strcmp(command, "move") == 0) {
-     isMoving = true;
-        switch (value) {
-            case 1: gaitController.set_gait(GaitType::TRIPOD); break;
-            case 2: gaitController.set_gait(GaitType::WAVE); break;
-            case 3: gaitController.set_gait(GaitType::RIPPLE); break;
-            case 4: gaitController.set_gait(GaitType::METACHROMATIC); break;
-        }
-    } else if (strcmp(command, "speed") == 0) {
+    isMoving = true;
+    gaitController.set_speed(map(value, 1, 4, 1.0f, 3.0f));
+
+    switch(value) {
+      case 1:
+        gaitController.set_gait(GaitType::TRIPOD);
+        Serial.println("Starting tripod gait");
+        break;
+      case 2:
+        gaitController.set_gait(GaitType::WAVE);
+        break;
+      // ... остальные кейсы
+    }
+  } else if (strcmp(command, "speed") == 0) {
     StepSpeed = constrain(value, 50, 300);
   } else if (strcmp(command, "claw") == 0) {
     if (value == 1) ClwOpn();
@@ -407,31 +376,6 @@ void Pos_SRV() {
   StepSpeed = lastSpeed;
 }
 //~~~~~~~~ Initial position (adjust all init servo here)
- /*
-void Pos_INT() {
-  if (!calibrationManager.isCalibrationLoaded()) {
-    calibrationManager.load_calibration();
-    calibrationManager.applyCalibration(SAdj);
-  }
-
-  // Сбрасываем все позиции с учётом калибровки
-  for (int i = 0; i < 32; i++) {
-    SMov[i] = DEFAULT_SERVO_POS - SAdj[i];
-  }
-
-  // Корректировка для зеркальных ног
-  for (int leg = 0; leg < 6; leg++) {
-    if (isMirroredLeg(leg)) {
-      for (int joint = 0; joint < 3; joint++) {
-        int servo = LEG_PINS[leg][joint];
-        SMov[servo] = calculatePosition(leg, SMov[servo]);
-      }
-    }
-  }
-
-  Send_Comm();
-} */
-
 void Pos_INT() {
   if (!calibrationManager.isCalibrationLoaded()) {
     calibrationManager.load_calibration();
@@ -454,8 +398,6 @@ void Pos_INT() {
 
   Serial.println("Reset to initial pose");
 }
-
-
 
 //~~~~~~~~ Stop motion
 void Move_STP() {

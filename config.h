@@ -8,9 +8,11 @@ constexpr int MAX_SERVO_PULSE = 2500;  // Максимум для MG90S
 constexpr int DEFAULT_SERVO_POS = 1500;
 constexpr int SERIAL1_TIMEOUT = 1000;
 
+bool isMirroredLeg(int legIndex);
+
 // Конфигурация контроллера CKX7651
 constexpr int CONTROLLER_BAUDRATE = 9600;
-constexpr int COMMAND_TIMEOUT = 1500;  // ms
+constexpr int COMMAND_TIMEOUT = 3000;  // ms
 
 // Конфигурация сети
 constexpr int WIFI_TIMEOUT = 10000;  // ms
