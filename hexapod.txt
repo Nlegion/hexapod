@@ -1,0 +1,540 @@
+=== ./logger.h ===
+// === logger.h ===
+#pragma once
+#include <Arduino.h>
+
+class Logger {
+public:
+    enum Level { INFO, WARNING, ERROR };
+
+    static void log(Level level, const char* format, ...) {
+        char buffer[256];
+        va_list args;
+        va_start(args, format);
+        vsnprintf(buffer, sizeof(buffer), format, args);
+        va_end(args);
+
+        Serial.printf("[%s] %s\n", level_str(level), buffer);
+    }
+
+private:
+    static const char* level_str(Level l) {
+        switch(l) {
+            case INFO: return "INFO";
+            case WARNING: return "WARN";
+            case ERROR: return "ERROR";
+            default: return "UNKNOWN";
+        }
+    }
+};
+
+
+
+=== ./config.h ===
+// === config.h ===
+#pragma once
+#define PI 3.14159265358979323846f
+
+// Network
+const char* SSID = "Homenet_plus";
+const char* PASSWORD = "29pronto69";
+const int WIFI_TIMEOUT = 20;
+
+// Servo
+constexpr int NUM_LEGS = 6;
+constexpr int SERVOS_PER_LEG = 3;
+constexpr int MIN_PULSE = 600;   // Минимальный импульс для MG90S
+constexpr int MAX_PULSE = 2400;  // Максимальный импульс
+constexpr int NEUTRAL = 1500;
+
+// Kinematics
+constexpr float BODY_RADIUS = 130.0f;
+constexpr float FEMUR_LENGTH = 40.0f;
+constexpr float TIBIA_LENGTH = 90.0f;
+constexpr float STEP_HEIGHT = 40.0f;
+constexpr float MAX_STEP = 80.0f;
+
+// Safety
+constexpr float MAX_SPEED = 100.0f; // mm/s
+constexpr float TORQUE_LIMIT = 2.0f; // Повышаем порог срабатывания
+constexpr float CURRENT_SAMPLE_TIME = 500; // Увеличиваем интервал измерения
+
+#pragma once
+
+// Смещения для калибровки сервоприводов (в микросекундах)
+// Формат: {смещение_сустава1, смещение_сустава2, смещение_сустава3}
+constexpr int LEG_OFFSETS[NUM_LEGS][3] = {
+    // Передние правые ноги (0-2)
+    { -10,  -30,   50 },
+    {   0,  -25,   45 },
+    { +15,  -20,   40 },
+    
+    // Задние левые ноги (3-5)
+    {  -5,  +25,  -35 },
+    { +10,  +30,  -40 },
+    { -20,  +35,  -45 }
+};
+
+
+
+=== ./page_html.h ===
+// HTML страница (без изменений)
+const char PROGMEM PAGE_HTML[] = R"=====(
+<!-- page.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Hexapod Control</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .control {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 10px;
+            width: 200px;
+            height: 200px;
+        }
+        button {
+            width: 60px;
+            height: 60px;
+            font-size: 24px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="control">
+        <button></button>
+        <button onclick="send('FWD')">↑</button>
+        <button></button>
+        <button onclick="send('LEFT')">←</button>
+        <button onclick="send('STOP')">⏹</button>
+        <button onclick="send('RIGHT')">→</button>
+        <button></button>
+        <button onclick="send('BWD')">↓</button>
+        <button></button>
+    </div>
+    <script>
+    const ws = new WebSocket(`ws://${location.hostname}:81/ws`);
+    
+    // Глобальная функция для кнопок
+    window.send = function(cmd) {
+        ws.send(cmd);
+        console.log("Sent command:", cmd);
+    }
+</script> 
+</body>
+</html>
+
+
+
+)=====";
+
+
+
+=== ./hexapod.txt ===
+
+
+
+=== ./safety.h ===
+#pragma once
+#include "config.h"
+#include "logger.h"
+
+class SafetySystem {
+public:
+    static int get_speed();
+    static void init();
+    static bool set_servo(int servo, int pulse);
+    static void update_load_monitor();
+    static void emergency_stop();
+    static void set_speed(float speed);
+
+private:
+    static float read_current(int leg);
+    static float current_load[NUM_LEGS];
+    static float max_speed;
+    static unsigned long last_update;
+};
+
+#include "commands.h"
+
+inline int SafetySystem::get_speed() {
+    return static_cast<int>(max_speed * 1000.0f / MAX_SPEED);
+}
+
+float SafetySystem::current_load[NUM_LEGS];
+float SafetySystem::max_speed = MAX_SPEED;
+unsigned long SafetySystem::last_update = 0;
+
+void SafetySystem::init() {
+    for (int i = 0; i < NUM_LEGS; i++)
+        current_load[i] = 0.0f;
+    max_speed = MAX_SPEED;
+    pinMode(A0, ANALOG);
+}
+
+bool SafetySystem::set_servo(int servo, int pulse) {
+    static int last_pulse[18] = {0};
+
+    pulse = constrain(pulse, MIN_PULSE, MAX_PULSE);
+
+    if(pulse <= MIN_PULSE + 50 || pulse >= MAX_PULSE - 50) {
+        Logger::log(Logger::ERROR, "CRITICAL servo %d: %dus", servo, pulse);
+        emergency_stop();
+        return false;
+    }
+    if (abs(pulse - last_pulse[servo]) < 10) {
+        return false;
+    }
+
+    last_pulse[servo] = pulse;
+
+    Commands::send_servo(servo, pulse);
+    return true;
+}
+
+void SafetySystem::update_load_monitor() {
+    if (millis() - last_update < 100) return;
+
+    for (int i = 0; i < NUM_LEGS; i++) {
+        current_load[i] = 0.8f * current_load[i] + 0.2f * read_current(i);
+
+        if (current_load[i] > TORQUE_LIMIT) {
+            Logger::log(Logger::WARNING, "Overload leg %d: %.1fA", i, current_load[i]);
+            emergency_stop();
+        }
+    }
+    last_update = millis();
+}
+
+void SafetySystem::emergency_stop() {
+    for (int i = 0; i < NUM_LEGS * SERVOS_PER_LEG; i++) {
+        Commands::send_servo(i, NEUTRAL);
+    }
+    Logger::log(Logger::ERROR, "EMERGENCY STOP");
+}
+
+void SafetySystem::set_speed(float speed) {
+    max_speed = constrain(speed, 0.0f, MAX_SPEED);
+}
+
+float SafetySystem::read_current(int leg) {
+    static float zero_offset[NUM_LEGS];
+    static unsigned long last_sample = 0;
+    if (millis() - last_sample < CURRENT_SAMPLE_TIME) return 0.0f;
+
+    float sum = 0;
+    for (int i = 0; i < 10; i++) {
+        sum += analogReadMilliVolts(A0 + leg) / 1000.0f;
+    }
+    last_sample = millis();
+    return (sum * 0.1f - zero_offset[leg]) * 0.8f;
+}
+
+
+
+=== ./hexapod.ino ===
+#include <WiFi.h>
+#include <WebServer.h>
+#include <WebSocketsServer.h>
+#include "config.h"
+#include "kinematics.h"
+#include "safety.h"
+#include "logger.h"
+#include "page_html.h"
+#include "commands.h"
+
+WebServer server(80);
+WebSocketsServer webSocket(81);
+LegController hexapod;
+
+// Добавляем прототипы функций
+void init_webserver();
+void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length);
+
+void setup() {
+    Serial.begin(115200);
+    Serial1.begin(9600, SERIAL_8N1, 4, 5); // Инициализация UART для сервоконтроллера
+    init_wifi();
+    init_webserver();
+    hexapod.reset_pose();
+    SafetySystem::init();
+    webSocket.begin();
+    webSocket.onEvent(webSocketEvent);
+}
+
+void loop() {
+    webSocket.loop();
+    server.handleClient();
+
+    static float last_speed = 0.0f;
+    float current_speed = hexapod.get_speed();
+
+    if (fabs(current_speed) > 0.1f || fabs(last_speed - current_speed) > 0.1f) {
+        // Передаем все необходимые параметры
+        hexapod.update(
+            millis() / 1000.0f,
+            hexapod.get_direction(),
+            current_speed
+        );
+        last_speed = current_speed;
+    }
+
+    SafetySystem::update_load_monitor();
+}
+
+void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
+    switch(type) {
+        case WStype_CONNECTED:
+            Logger::log(Logger::INFO, "WebSocket client %d connected", num);
+            break;
+
+        case WStype_TEXT:
+            handle_command((const char*)payload);
+            break;
+
+        case WStype_DISCONNECTED:
+            Logger::log(Logger::INFO, "WebSocket client %d disconnected", num);
+            break;
+    }
+}
+
+void handle_command(const char* cmd) {
+    static float target_speed = 0.0f;
+    static float target_dir = 0.0f;
+
+    if(strcmp(cmd, "FWD") == 0) {
+        target_speed = 1.0f;
+        target_dir = 0.0f;
+    }
+    else if(strcmp(cmd, "BWD") == 0) {
+        target_speed = -1.0f;
+        target_dir = 0.0f;
+    }
+    else if(strcmp(cmd, "LEFT") == 0) {
+        target_dir = 0.5f;
+    }
+    else if(strcmp(cmd, "RIGHT") == 0) {
+        target_dir = -0.5f;
+    }
+    else if(strcmp(cmd, "STOP") == 0) {
+        hexapod.set_speed(0);
+        hexapod.set_direction(0);
+        hexapod.reset_pose();
+
+        // Принудительное обновление всех сервоприводов
+        for(int i = 0; i < 18; i++) {
+            int pulse = NEUTRAL + LEG_OFFSETS[i/3][i%3];
+            SafetySystem::set_servo(i, pulse);
+        }
+        return;
+    }
+
+    // Плавное изменение параметров
+    hexapod.set_speed(target_speed * MAX_SPEED);
+    hexapod.set_direction(target_dir * M_PI);
+}
+
+void set_motion(float speed, float direction) {
+    // Ограничения и фильтрация
+    speed = constrain(speed, -1.0f, 1.0f);
+    direction = constrain(direction, -M_PI, M_PI);
+
+    // Плавное изменение скорости
+    static float current_speed = 0.0f;
+    current_speed += (speed - current_speed) * 0.1f;
+
+    hexapod.set_speed(current_speed * MAX_SPEED);
+    hexapod.set_direction(direction);
+}
+
+void init_wifi() {
+    WiFi.begin(SSID, PASSWORD);
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Logger::log(Logger::INFO, "Connecting to WiFi...");
+    }
+    Logger::log(Logger::INFO, "Connected to %s", WiFi.localIP().toString().c_str());
+}
+
+// Реализация init_webserver
+void init_webserver() {
+    server.on("/", []() {
+        server.send_P(200, "text/html", PAGE_HTML);
+    });
+    server.begin();
+}
+
+
+
+=== ./save_to_txt.sh ===
+#!/bin/bash
+
+# Укажите имя выходного файла
+output_file="hexapod.txt"
+
+# Очистите выходной файл, если он уже существует
+> "$output_file"
+
+# Найдите все файлы Python в текущей директории и её поддиректориях, игнорируя папки tmp и .venv
+find . -type f -name "*.*" ! -path "./tmp/*" ! -path "./.venv/*" ! -path "./venv/*" | while read -r file; do
+    # Добавьте содержимое каждого файла в выходной файл
+    echo "=== $file ===" >> "$output_file"
+    cat "$file" >> "$output_file"
+    echo -e "\n\n" >> "$output_file"
+done
+
+echo "Содержимое файлов Python сохранено в $output_file"
+
+
+
+=== ./kinematics.h ===
+#pragma once
+#include "config.h"
+#include "safety.h"
+
+class LegController {
+private:
+    float direction = 0.0f;
+    float gait_speed = 0.0f;
+    struct LegState {
+        float phase;
+        float target_angle[3];
+    };
+
+    LegState legs[NUM_LEGS];
+    float last_time = 0;
+
+    void calculate_ik(int leg, float x, float y, float z, float angles[3]) {
+        angles[0] = angles[1] = angles[2] = 0.0f;
+
+        if(leg >= 3) x = -x;
+
+        float coxa_length = BODY_RADIUS;
+        float L = sqrt(x*x + y*y) - coxa_length;
+        float D = sqrt(L*L + z*z);
+
+        if(D > FEMUR_LENGTH + TIBIA_LENGTH || D < abs(FEMUR_LENGTH - TIBIA_LENGTH)) {
+            Logger::log(Logger::ERROR, "IK Error leg %d", leg);
+            return;
+        }
+
+        angles[0] = atan2(y, x);
+        float theta = atan2(z, L);
+        float alpha = acos((FEMUR_LENGTH*FEMUR_LENGTH + D*D - TIBIA_LENGTH*TIBIA_LENGTH)
+                       / (2*FEMUR_LENGTH*D));
+        angles[1] = theta + alpha;
+        angles[2] = acos((FEMUR_LENGTH*FEMUR_LENGTH + TIBIA_LENGTH*TIBIA_LENGTH - D*D)
+                      / (2*FEMUR_LENGTH*TIBIA_LENGTH));
+    }
+
+public:
+    float get_direction() const {
+        return direction;
+    }
+    float get_speed() const {
+        return gait_speed;
+    }
+
+    void reset_pose() {
+        for(int leg = 0; leg < NUM_LEGS; leg++) {
+            float x = BODY_RADIUS * (leg < 3 ? 1 : -1);
+            float y = 0;
+            float z = -TIBIA_LENGTH + 20.0f;
+
+            float angles[3] = {0};
+            calculate_ik(leg, x, y, z, angles);
+
+            for(int joint = 0; joint < 3; joint++) {
+                int servo = leg * 3 + joint;
+                int pulse = NEUTRAL + LEG_OFFSETS[leg][joint] + leg * 11.11f;
+                pulse = constrain(pulse, MIN_PULSE + 100, MAX_PULSE - 100);
+
+                SafetySystem::set_servo(servo, pulse);
+                Logger::log(Logger::INFO, "RESET servo %d: %dus", servo, pulse);
+            }
+        }
+    }
+
+    void update(float time, float dir, float spd) {
+        float dt = time - last_time;
+        if (dt < 0.01f) return;
+
+        direction = dir;
+        gait_speed = spd;
+
+        for (int i = 0; i < NUM_LEGS; i++) {
+            legs[i].phase += spd * dt;
+
+            float x = BODY_RADIUS + (i % 2 ? -1 : 1) * MAX_STEP * sin(legs[i].phase);
+            float y = 0;
+            float z = -TIBIA_LENGTH + STEP_HEIGHT * (1 + cos(2 * legs[i].phase)) / 2;
+
+            calculate_ik(i, x, y, z, legs[i].target_angle);
+
+            for (int j = 0; j < 3; j++) {
+                int servo = i * 3 + j;
+                float deg = constrain(degrees(legs[i].target_angle[j]), -90.0f, 90.0f);
+                int pulse = NEUTRAL + LEG_OFFSETS[i][j] + deg * 11.11f;
+
+                SafetySystem::set_servo(servo, pulse);
+            }
+        }
+
+        last_time = time;
+    }
+
+    void set_speed(float speed) {
+        gait_speed = speed;
+    }
+
+    void set_direction(float dir) {
+        direction = dir;
+    }
+};
+
+
+
+=== ./README.md ===
+# hexapod
+
+
+=== ./commands.h ===
+#pragma once
+#include "config.h"
+#include "safety.h"  // Добавляем include ПЕРЕД использованием SafetySystem
+#include "logger.h"
+
+class Commands {
+public:
+    static void send_servo(int servo, int pulse) {
+        if(servo < 0 || servo >= NUM_LEGS*SERVOS_PER_LEG) return;
+        
+        char buffer[32];
+        snprintf(buffer, sizeof(buffer), "#%dP%dT%d\r\n", 
+                servo+1, pulse, SafetySystem::get_speed());
+        
+        Serial1.print(buffer);
+        Logger::log(Logger::INFO, "Sent: %s", buffer);
+    }
+};
+
+
+
