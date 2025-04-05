@@ -6,14 +6,21 @@
 #include "page_html.h"
 #include "safety.h"
 #include "commands.h"
-#include "kinematics.h" // Добавляем явное подключение kinematics
+#include "kinematics.h"
 
 WebServer server(80);
 WebSocketsServer webSocket(81);
-LegController hexapod; // Теперь компилятор видит объявление из kinematics.h
+LegController hexapod;
+
+bool is_moving = false;
+unsigned long step_start_time = 0;
+int current_leg = 0; // Начинаем с ноги 0
 
 void init_webserver();
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length);
+void handle_command(const char* cmd);
+
+
 void setup() {
     Serial.begin(115200);
     Serial1.begin(9600, SERIAL_8N1, 4, 5);
@@ -41,6 +48,16 @@ void loop() {
     webSocket.loop();
     server.handleClient();
     SafetySystem::update_load_monitor();
+
+    if(is_moving) {
+        hexapod.update_single_leg(current_leg, millis() - step_start_time);
+        
+        // Сбрасываем анимацию через STEP_DURATION
+        if(millis() - step_start_time > STEP_DURATION * 1000) {
+            is_moving = false;
+            hexapod.reset_pose();
+        }
+    }
 }
 
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
@@ -65,10 +82,17 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
 void handle_command(const char* cmd) {
     if(strcmp(cmd, "STOP") == 0) {
         Logger::log(Logger::INFO, "Executing STOP command");
+        is_moving = false;
         hexapod.reset_pose();
         return;
     }
+    else if(strcmp(cmd, "FWD") == 0) {
+        Logger::log(Logger::INFO, "Starting leg movement");
+        is_moving = true;
+        step_start_time = millis();
+        current_leg = 0; // Начинаем с первой ноги
+        return;
+    }
     
-    // Для всех остальных команд просто выводим сообщение
     Logger::log(Logger::INFO, "Command '%s' received (not implemented yet)", cmd);
 }

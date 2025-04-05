@@ -3,9 +3,9 @@
 #define PI 3.14159265358979323846f
 
 // Network
-const char* SSID = "Homenet_plus";
-const char* PASSWORD = "29pronto69";
-const int WIFI_TIMEOUT = 20;
+constexpr char SSID[] = "Homenet_plus";
+constexpr char PASSWORD[] = "29pronto69";
+constexpr int WIFI_TIMEOUT = 20;
 
 // Servo
 constexpr int NUM_LEGS = 6;
@@ -18,8 +18,10 @@ constexpr int NEUTRAL = 1500;
 constexpr float BODY_RADIUS = 130.0f;
 constexpr float FEMUR_LENGTH = 40.0f;
 constexpr float TIBIA_LENGTH = 90.0f;
-constexpr float STEP_HEIGHT = 40.0f;
 constexpr float MAX_STEP = 80.0f;
+constexpr float STEP_DURATION = 1.0f; // Длительность шага в секундах
+constexpr float STEP_LENGTH = 30.0f;  // Было 50.0f
+constexpr float STEP_HEIGHT = 20.0f; // Было 40.0f
 
 // Safety
 constexpr float MAX_SPEED = 100.0f; // mm/s
