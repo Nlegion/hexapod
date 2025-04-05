@@ -10,7 +10,7 @@ public:
         
         char buffer[32];
         snprintf(buffer, sizeof(buffer), "#%dP%dT%d\r\n", 
-                servo+1, pulse, SafetySystem::get_speed());
+                servo, pulse, SafetySystem::get_speed());
         
         Serial1.print(buffer);
         Logger::log(Logger::INFO, "Sent: %s", buffer);
