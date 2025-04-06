@@ -14,17 +14,17 @@ LegController hexapod;
 
 bool is_moving = false;
 unsigned long step_start_time = 0;
-int current_leg = 0; // Начинаем с ноги 0
+//int current_leg = 0; // Начинаем с ноги 0
+LegID current_leg = LEG_FRONT_RIGHT;
 
 void init_webserver();
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length);
 void handle_command(const char* cmd);
 
-
 void setup() {
     Serial.begin(115200);
     Serial1.begin(9600, SERIAL_8N1, 4, 5);
-    
+
     WiFi.begin(SSID, PASSWORD);
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
@@ -36,11 +36,11 @@ void setup() {
         server.send_P(200, "text/html", PAGE_HTML);
     });
     server.begin();
-    
+
     webSocket.begin();
     webSocket.onEvent(webSocketEvent);
-    
-    hexapod.reset_pose(); // Теперь hexapod объявлен
+
+    hexapod.reset_pose(current_leg); // Теперь hexapod объявлен
     Logger::log(Logger::INFO, "Ready. All servos in neutral position");
 }
 
@@ -50,12 +50,12 @@ void loop() {
     SafetySystem::update_load_monitor();
 
     if(is_moving) {
-        hexapod.update_single_leg(current_leg, millis() - step_start_time);
-        
+        hexapod.update_single_leg(static_cast<LegID>(current_leg), millis() - step_start_time);
+
         // Сбрасываем анимацию через STEP_DURATION
         if(millis() - step_start_time > STEP_DURATION * 1000) {
             is_moving = false;
-            hexapod.reset_pose();
+            hexapod.reset_pose(current_leg);
         }
     }
 }
@@ -80,19 +80,36 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
 }
 
 void handle_command(const char* cmd) {
-    if(strcmp(cmd, "STOP") == 0) {
+    if(strcmp(cmd, "FWD") == 0) {
+        current_leg = LEG_FRONT_RIGHT;
+        start_movement();
+        return; 
+    }
+    else if(strcmp(cmd, "CALIBRATE") == 0) {
+        calibrate_servos();
+    }
+    else if(strcmp(cmd, "STOP") == 0) {
         Logger::log(Logger::INFO, "Executing STOP command");
         is_moving = false;
-        hexapod.reset_pose();
+        hexapod.reset_pose(current_leg);
         return;
     }
-    else if(strcmp(cmd, "FWD") == 0) {
-        Logger::log(Logger::INFO, "Starting leg movement");
-        is_moving = true;
-        step_start_time = millis();
-        current_leg = 0; // Начинаем с первой ноги
-        return;
-    }
-    
+
     Logger::log(Logger::INFO, "Command '%s' received (not implemented yet)", cmd);
+}
+
+void start_movement() {
+    is_moving = true;
+    step_start_time = millis();
+    Logger::log(Logger::INFO, "Starting movement for leg %d", current_leg);
+}
+
+void calibrate_servos() {
+    Logger::log(Logger::INFO, "Calibration started");
+    for(int leg = 0; leg < TOTAL_LEGS; leg++) {
+        for(int joint = 0; joint < NUM_JOINTS; joint++) {
+            int servo = LEG_SERVO_MAP[leg][joint];
+            SafetySystem::set_servo(servo, NEUTRAL);
+        }
+    }
 }

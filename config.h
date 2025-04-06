@@ -1,6 +1,43 @@
-// === config.h ===
+// === config.h === (исправленная версия)
 #pragma once
-#define PI 3.14159265358979323846f
+#include <Arduino.h>
+
+// Декларация типов
+enum LegID {
+    LEG_FRONT_RIGHT,    // 0
+    LEG_MIDDLE_RIGHT,   // 1
+    LEG_REAR_RIGHT,     // 2
+    LEG_REAR_LEFT,      // 3
+    LEG_MIDDLE_LEFT,    // 4
+    LEG_FRONT_LEFT,     // 5
+    TOTAL_LEGS // Количество ног
+};
+
+enum JointID {
+    COXA,   // Сустав ближе к телу
+    FEMUR,  // Бедренный сустав
+    TIBIA,  // Голенный сустав
+    NUM_JOINTS
+};
+
+// Конфигурация сервоприводов для каждой ноги [COXA, FEMUR, TIBIA]
+constexpr uint8_t LEG_SERVO_MAP[TOTAL_LEGS][NUM_JOINTS] = {
+    /* LEG_FRONT_RIGHT */ {9, 10, 11},
+    /* LEG_MIDDLE_RIGHT */ {5, 6, 7},
+    /* LEG_REAR_RIGHT */ {1, 2, 3},
+    /* LEG_REAR_LEFT */ {32, 31, 30},
+    /* LEG_MIDDLE_LEFT */ {28, 27, 26},
+    /* LEG_FRONT_LEFT */ {21, 22, 23}
+};
+
+constexpr int LEG_OFFSETS[TOTAL_LEGS][NUM_JOINTS] = {
+    /* LEG_FRONT_RIGHT */ {0, 0, 0},
+    /* LEG_MIDDLE_RIGHT */ {0, 0, 0},
+    /* LEG_REAR_RIGHT */ {0, 0, 0},
+    /* LEG_REAR_LEFT */ {0, 0, 0},
+    /* LEG_MIDDLE_LEFT */ {0, 0, 0},
+    /* LEG_FRONT_LEFT */ {0, 0, 0}
+};
 
 // Network
 constexpr char SSID[] = "Homenet_plus";
@@ -8,7 +45,6 @@ constexpr char PASSWORD[] = "29pronto69";
 constexpr int WIFI_TIMEOUT = 20;
 
 // Servo
-constexpr int NUM_LEGS = 6;
 constexpr int SERVOS_PER_LEG = 3;
 constexpr int MIN_PULSE = 600;   // Минимальный импульс для MG90S
 constexpr int MAX_PULSE = 2400;  // Максимальный импульс
@@ -19,27 +55,12 @@ constexpr float BODY_RADIUS = 130.0f;
 constexpr float FEMUR_LENGTH = 40.0f;
 constexpr float TIBIA_LENGTH = 90.0f;
 constexpr float MAX_STEP = 80.0f;
-constexpr float STEP_DURATION = 1.0f; // Длительность шага в секундах
-constexpr float STEP_LENGTH = 30.0f;  // Было 50.0f
-constexpr float STEP_HEIGHT = 20.0f; // Было 40.0f
+constexpr float STEP_DURATION = 3.0f;
+constexpr float STEP_LENGTH = 50.0f;
+constexpr float STEP_HEIGHT = 30.0f;
+constexpr float MAX_ANGLES[3] = {90.0f, 90.0f, 90.0f};
 
 // Safety
-constexpr float MAX_SPEED = 100.0f; // mm/s
-constexpr float TORQUE_LIMIT = 2.0f; // Повышаем порог срабатывания
-constexpr float CURRENT_SAMPLE_TIME = 500; // Увеличиваем интервал измерения
-
-#pragma once
-
-// Смещения для калибровки сервоприводов (в микросекундах)
-// Формат: {смещение_сустава1, смещение_сустава2, смещение_сустава3}
-constexpr int LEG_OFFSETS[NUM_LEGS][3] = {
-    // Передние правые ноги (0-2)
-    { -10,  -30,   50 },
-    {   0,  -25,   45 },
-    { +15,  -20,   40 },
-    
-    // Задние левые ноги (3-5)
-    {  -5,  +25,  -35 },
-    { +10,  +30,  -40 },
-    { -20,  +35,  -45 }
-};
+constexpr float MAX_SPEED = 100.0f;
+constexpr float TORQUE_LIMIT = 2.0f;
+constexpr float CURRENT_SAMPLE_TIME = 500;

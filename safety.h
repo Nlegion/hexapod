@@ -13,7 +13,7 @@ public:
 
 private:
     static float read_current(int leg);
-    static float current_load[NUM_LEGS];
+    static float current_load[TOTAL_LEGS]; 
     static float max_speed;
     static unsigned long last_update;
 };
