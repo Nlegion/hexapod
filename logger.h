@@ -1,4 +1,3 @@
-// === logger.h ===
 #pragma once
 #include <Arduino.h>
 
@@ -13,7 +12,15 @@ public:
         vsnprintf(buffer, sizeof(buffer), format, args);
         va_end(args);
 
-        Serial.printf("[%s] %s\n", level_str(level), buffer);
+        // Получение текущего времени
+        unsigned long ms = millis();
+        uint16_t h = (ms / 3600000) % 24;
+        uint8_t m = (ms / 60000) % 60;
+        uint8_t s = (ms / 1000) % 60;
+        uint16_t ms_remainder = ms % 1000;
+
+        Serial.printf("[%02d:%02d:%02d.%03d] [%s] %s\n", 
+                      h, m, s, ms_remainder, level_str(level), buffer);
     }
 
 private:

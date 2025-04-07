@@ -17,12 +17,10 @@ void SafetySystem::init() {
 }
 
 bool SafetySystem::set_servo(int servo, int pulse) {
-    static int last_pulse[18] = {0};
-    const int MAX_DELTA = 100; // Оптимальное значение для MG90S
+    static int last_pulse[32] = {0};
+    const int MAX_DELTA = 5; // Уменьшено для плавности
 
     pulse = constrain(pulse, MIN_PULSE, MAX_PULSE);
-
-    // Плавное изменение положения
     int delta = pulse - last_pulse[servo];
     delta = constrain(delta, -MAX_DELTA, MAX_DELTA);
     pulse = last_pulse[servo] + delta;

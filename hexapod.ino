@@ -91,7 +91,10 @@ void handle_command(const char* cmd) {
     else if(strcmp(cmd, "STOP") == 0) {
         Logger::log(Logger::INFO, "Executing STOP command");
         is_moving = false;
-        hexapod.reset_pose(current_leg);
+        // Сброс всех ног
+        for(int leg = 0; leg < TOTAL_LEGS; leg++) {
+            hexapod.reset_pose(static_cast<LegID>(leg));
+        }
         return;
     }
 
