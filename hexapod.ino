@@ -15,33 +15,21 @@ LegController hexapod;
 const LegPosition tripod_positions[2][TOTAL_LEGS] = {
     // Phase 1
     {
-        // LEG_FRONT_RIGHT (45°)
-        { 45.0f, 35.0f, 30.0f, 700 },   
-        // LEG_MIDDLE_RIGHT
-        { 0.0f, 50.0f, -40.0f, 500 },
-        // LEG_REAR_RIGHT 
-        { -35.0f, 35.0f, 30.0f, 700 },
-        // LEG_REAR_LEFT
-        { -45.0f, 35.0f, 30.0f, 700 },
-        // LEG_MIDDLE_LEFT
-        { 0.0f, 50.0f, -40.0f, 700 },
-        // LEG_FRONT_LEFT
-        { 35.0f, 35.0f, 30.0f, 700 }
+        /*FR*/ { 30.0f, 0.0f, -25.0f, 300 },  
+        /*MR*/ { 0.0f, 0.0f, 40.0f, 300 },
+        /*RR*/ { -30.0f, 0.0f, -25.0f, 300 },
+        /*RL*/ { -20.0f, 0.0f, 40.0f, 300 },
+        /*ML*/ { 0.0f, 0.0f, -25.0f, 300 },
+        /*FL*/ { 20.0f, 0.0f, 40.0f, 300 }
     },
     // Phase 2
     {
-        // LEG_FRONT_RIGHT 
-        { 35.0f, 50.0f, -40.0f, 700 },   
-        // LEG_MIDDLE_RIGHT 
-        { -35.0f, 35.0f, 30.0f, 700 },   
-        // LEG_REAR_RIGHT 
-        { -45.0f, 50.0f, -40.0f, 700 },   
-        // LEG_REAR_LEFT 
-        { 45.0f, 50.0f, -40.0f, 700 },    
-        // LEG_MIDDLE_LEFT 
-        { 35.0f, 35.0f, 30.0f, 700 },    
-        // LEG_FRONT_LEFT 
-        { -35.0f, 50.0f, -40.0f, 700 }    
+        /*FR*/ { 20.0f, 0.0f, 40.0f, 300 },   
+        /*MR*/ { -30.0f, 0.0f, -25.0f, 300 },   
+        /*RR*/ { -20.0f, 0.0f, 40.0f, 300 },    
+        /*RL*/ { 30.0f, 0.0f, -25.0f, 300 },    
+        /*ML*/ { 20.0f, 0.0f, 40.0f, 300 },    
+        /*FL*/ { -30.0f, 0.0f, -25.0f, 300 }    
     }
 };
 
@@ -108,29 +96,28 @@ void loop() {
 }
 
 
-
-
 void handle_gait_cycle() {
     if(!is_moving) return;
 
-    if(millis() - phase_start_time > GAIT_DELAY * 2) {
-        // Переключение фазы
+    // Плавное обновление позиций с учётом времени
+    float progress = (millis() - phase_start_time) / (float)GAIT_DELAY;
+    progress = constrain(progress, 0.0f, 1.0f);
+    
+    if(progress >= 1.0f) {
         current_phase = (current_phase == GaitPhase::PHASE1) ? 
             GaitPhase::PHASE2 : GaitPhase::PHASE1;
+        phase_start_time = millis();
         
-        // Установка новых целей
         for(int leg = 0; leg < TOTAL_LEGS; leg++) {
             hexapod.set_target_position(
                 static_cast<LegID>(leg),
                 tripod_positions[static_cast<int>(current_phase)][leg]
             );
         }
-        phase_start_time = millis();
     }
-
-    hexapod.update_all_legs();
+    
+    hexapod.update_all_legs(progress); // Передаём прогресс анимации
 }
-
 
 
 void handle_command(const char* cmd) {

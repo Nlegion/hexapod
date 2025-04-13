@@ -66,6 +66,13 @@ public:
         angles[TIBIA] = constrain(angles[TIBIA], 
                                radians(ANGLE_LIMITS[TIBIA][0]), 
                                radians(ANGLE_LIMITS[TIBIA][1]));
+        Logger::log(Logger::INFO, 
+        "Leg %d IK: X=%.1f Y=%.1f Z=%.1f → COX=%.1f FEM=%.1f TIB=%.1f",
+        leg, x, y, z, 
+        degrees(angles[COXA]),
+        degrees(angles[FEMUR]),
+        degrees(angles[TIBIA]));
+    
     }
 
      void reset_pose(LegID leg_id) {
@@ -80,49 +87,39 @@ public:
     current_pos[leg_id] = {0, 0, 0, 0};
 }
 
-    void update_all_legs() {
-    static unsigned long last_update = 0;
-    if(millis() - last_update < 50) return;
-    last_update = millis();
-
+    void update_all_legs(float progress) {
     for(int leg = 0; leg < TOTAL_LEGS; leg++) {
-        // Интерполяция
-        current_pos[leg].x += (target_pos[leg].x - current_pos[leg].x) * INTERPOLATION_STEP;
-        current_pos[leg].y += (target_pos[leg].y - current_pos[leg].y) * INTERPOLATION_STEP;
-        current_pos[leg].z += (target_pos[leg].z - current_pos[leg].z) * INTERPOLATION_STEP;
-
-        // Применение углов
+        current_pos[leg].x = current_pos[leg].x + (target_pos[leg].x - current_pos[leg].x) * 0.3f;
+        current_pos[leg].y = current_pos[leg].y + (target_pos[leg].y - current_pos[leg].y) * 0.3f;
+        current_pos[leg].z = current_pos[leg].z + (target_pos[leg].z - current_pos[leg].z) * 0.3f;
+        
         apply_angles(static_cast<LegID>(leg), current_pos[leg]);
     }
+}
+
+float lerp(float a, float b, float t) {
+    return a + t * (b - a);
 }
 
 
 private:
     void apply_angles(LegID leg, const LegPosition& pos) {
-        float angles[NUM_JOINTS];
-        calculate_ik(leg, pos.x, pos.y, pos.z, angles);
+    float angles[NUM_JOINTS];
+    calculate_ik(leg, pos.x, pos.y, pos.z, angles);
 
-        Logger::log(Logger::INFO, "Leg %d angles: COX=%.1f FEM=%.1f TIB=%.1f", 
-            leg, degrees(angles[COXA]), degrees(angles[FEMUR]), degrees(angles[TIBIA]));
+    int direction = is_left_leg(leg) ? -1 : 1;
+    
+    for(int j = 0; j < NUM_JOINTS; j++) {
+        int servo = LEG_SERVO_MAP[leg][j];
+        float deg = degrees(angles[j]);
         
-        // Добавлено определение направления внутри метода
-        int direction = is_left_leg(leg) ? -1 : 1;
+        // Корректировка коэффициента пересчёта градусов в импульсы
+        // В файле kinematics.h изменить формулу расчёта импульсов:
+int pulse = NEUTRAL + (LEG_OFFSETS[leg][j] + deg * direction) * (2000.0f / 180.0f); // 11.11 мкс/градус → ~11.11
+pulse = constrain(pulse, MIN_PULSE + 100, MAX_PULSE - 100); // Добавить защитный интервал
         
-        for(int j = 0; j < NUM_JOINTS; j++) {
-            int servo = LEG_SERVO_MAP[leg][j];
-            float deg = degrees(angles[j]);
-            
-            // Исправленная формула импульса
-            int pulse = NEUTRAL + (LEG_OFFSETS[leg][j] + deg * direction) * 11.11f;
-            pulse = constrain(pulse, MIN_PULSE, MAX_PULSE);
-            
-            if(pulse < MIN_PULSE + 100 || pulse > MAX_PULSE - 100) {
-                Logger::log(Logger::WARNING, 
-                    "Near limit: Servo %d → %dμs", servo, pulse);
-            }
-            
-            SafetySystem::set_servo(servo, pulse);
-        }
+        SafetySystem::set_servo(servo, pulse);
     }
+}
 
 };

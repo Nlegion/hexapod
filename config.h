@@ -40,19 +40,19 @@ constexpr uint8_t LEG_SERVO_MAP[TOTAL_LEGS][NUM_JOINTS] = {
 };
 
 constexpr int LEG_OFFSETS[TOTAL_LEGS][NUM_JOINTS] = {
-    /* LEG_FRONT_RIGHT */ { -15, 10, -5 }, // COXA, FEMUR, TIBIA
-    /* LEG_MIDDLE_RIGHT */ { 0, 0, 0 },
-    /* LEG_REAR_RIGHT */ { 0, 0, 0 },
-    /* LEG_REAR_LEFT */ { 30, -20, 10 },
-    /* LEG_MIDDLE_LEFT */ { 0, 0, 0 },
-    /* LEG_FRONT_LEFT */ { 0, 0, 0 }
+    /*FR*/ { -8, 5, -3 },   
+    /*MR*/ { 0, 0, 0 },
+    /*RR*/ { 0, 0, 0 },
+    /*RL*/ { 8, -5, 3 },    
+    /*ML*/ { 0, 0, 0 },
+    /*FL*/ { 0, 0, 0 }
 };
 
 // Пределы углов безопасности
 constexpr int ANGLE_LIMITS[NUM_JOINTS][2] = {
-    {-60, 60},   // Coxa (расширены лимиты)
-    {0, 90},     // Femur
-    {30, 150}    // Tibia
+    {-45, 45},   // Coxa
+    {20, 160},   // Femur (расширенный диапазон)
+    {50, 130}    // Tibia (суженный безопасный диапазон)
 };
 
 // Network
@@ -68,10 +68,11 @@ constexpr int NEUTRAL = 1500;
 
 // Kinematics
 constexpr float BODY_RADIUS = 65.0f;      // Оптимизирован радиус тела
-constexpr float FEMUR_LENGTH = 53.0f;       // Уточнены длины сегментов
+constexpr float FEMUR_LENGTH = 43.0f;       // Уточнены длины сегментов
 constexpr float TIBIA_LENGTH = 73.0f;
+constexpr float COXA_LENGTH = 39.0f;   // Длина коксы
 constexpr float MAX_STEP = 60.0f;
-constexpr float STEP_DURATION = 1.5f;       // Уменьшена длительность шага
+constexpr float STEP_DURATION = 0.8f;       // Уменьшена длительность шага
 constexpr float STEP_LENGTH = 100.0f;        // Увеличен шаг
 constexpr float STEP_HEIGHT = 50.0f;        // Увеличена высота подъема
 constexpr float MAX_ANGLES[3] = {60.0f, 90.0f, 120.0f}; // Уточнены ограничения
@@ -82,5 +83,5 @@ constexpr float TORQUE_LIMIT = 2.0f;
 constexpr float CURRENT_SAMPLE_TIME = 500;
 
 // Константы для трипоидной походки
-constexpr uint16_t GAIT_DELAY = 350;       // Задержка между фазами
-constexpr float INTERPOLATION_STEP = 0.3f; // Шаг интерполяции
+constexpr uint16_t GAIT_DELAY = 150;       // Задержка между фазами
+constexpr float INTERPOLATION_STEP = 0.6f; // Шаг интерполяции
