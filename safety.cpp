@@ -17,10 +17,17 @@ void SafetySystem::init() {
 }
 
 bool SafetySystem::set_servo(int servo, int pulse) {
+    Logger::log(Logger::INFO, "Set servo %d → %dμs", servo, pulse);
     static int last_pulse[32] = {0};
-    const int MAX_DELTA = 5; // Уменьшено для плавности
+    const int MAX_DELTA = 15; // Уменьшено для плавности
 
     pulse = constrain(pulse, MIN_PULSE, MAX_PULSE);
+    
+    if(pulse < MIN_PULSE || pulse > MAX_PULSE) {
+        Logger::log(Logger::ERROR, 
+            "Pulse out of range! Servo %d: %dμs", servo, pulse);
+        return false;
+    }
     int delta = pulse - last_pulse[servo];
     delta = constrain(delta, -MAX_DELTA, MAX_DELTA);
     pulse = last_pulse[servo] + delta;

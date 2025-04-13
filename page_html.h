@@ -48,7 +48,7 @@ const char PROGMEM PAGE_HTML[] = R"=====(
         <button onclick="send('RIGHT')">→</button>
         <button></button>
         <button onclick="send('BWD')">↓</button>
-        <button></button>
+        <button onclick="send('CALIBRATE')">0</button>
     </div>
     <script>
     const ws = new WebSocket(`ws://${location.hostname}:81/ws`);

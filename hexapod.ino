@@ -12,14 +12,61 @@ WebServer server(80);
 WebSocketsServer webSocket(81);
 LegController hexapod;
 
+const LegPosition tripod_positions[2][TOTAL_LEGS] = {
+    // Phase 1
+    {
+        // LEG_FRONT_RIGHT (45°)
+        { 45.0f, 35.0f, 30.0f, 700 },   
+        // LEG_MIDDLE_RIGHT
+        { 0.0f, 50.0f, -40.0f, 500 },
+        // LEG_REAR_RIGHT 
+        { -35.0f, 35.0f, 30.0f, 700 },
+        // LEG_REAR_LEFT
+        { -45.0f, 35.0f, 30.0f, 700 },
+        // LEG_MIDDLE_LEFT
+        { 0.0f, 50.0f, -40.0f, 700 },
+        // LEG_FRONT_LEFT
+        { 35.0f, 35.0f, 30.0f, 700 }
+    },
+    // Phase 2
+    {
+        // LEG_FRONT_RIGHT 
+        { 35.0f, 50.0f, -40.0f, 700 },   
+        // LEG_MIDDLE_RIGHT 
+        { -35.0f, 35.0f, 30.0f, 700 },   
+        // LEG_REAR_RIGHT 
+        { -45.0f, 50.0f, -40.0f, 700 },   
+        // LEG_REAR_LEFT 
+        { 45.0f, 50.0f, -40.0f, 700 },    
+        // LEG_MIDDLE_LEFT 
+        { 35.0f, 35.0f, 30.0f, 700 },    
+        // LEG_FRONT_LEFT 
+        { -35.0f, 50.0f, -40.0f, 700 }    
+    }
+};
+
 bool is_moving = false;
 unsigned long step_start_time = 0;
-//int current_leg = 0; // Начинаем с ноги 0
-LegID current_leg = LEG_FRONT_RIGHT;
 
 void init_webserver();
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length);
 void handle_command(const char* cmd);
+enum class GaitState {
+    IDLE,
+    LIFT,
+    MOVE,
+    LOWER
+};
+enum class GaitPhase {
+    PHASE1, // Первая тройка ног в воздухе
+    PHASE2  // Вторая тройка ног в воздухе
+};
+
+GaitPhase current_phase = GaitPhase::PHASE1;
+unsigned long phase_start_time = 0;
+GaitState gait_state = GaitState::IDLE;
+LegID active_leg = LEG_FRONT_RIGHT;
+float progress = 0.0f;
 
 void setup() {
     Serial.begin(115200);
@@ -36,11 +83,18 @@ void setup() {
         server.send_P(200, "text/html", PAGE_HTML);
     });
     server.begin();
+     for(int leg = 0; leg < TOTAL_LEGS; leg++) {
+        hexapod.set_target_position(
+            static_cast<LegID>(leg),
+            tripod_positions[0][leg]
+        );
+    }
 
     webSocket.begin();
     webSocket.onEvent(webSocketEvent);
 
-    hexapod.reset_pose(current_leg); // Теперь hexapod объявлен
+    SafetySystem::init();
+    hexapod.reset_pose(active_leg);
     Logger::log(Logger::INFO, "Ready. All servos in neutral position");
 }
 
@@ -49,14 +103,56 @@ void loop() {
     server.handleClient();
     SafetySystem::update_load_monitor();
 
-    if(is_moving) {
-        hexapod.update_single_leg(static_cast<LegID>(current_leg), millis() - step_start_time);
+    handle_gait_cycle();
+    
+}
 
-        // Сбрасываем анимацию через STEP_DURATION
-        if(millis() - step_start_time > STEP_DURATION * 1000) {
-            is_moving = false;
-            hexapod.reset_pose(current_leg);
+
+
+
+void handle_gait_cycle() {
+    if(!is_moving) return;
+
+    if(millis() - phase_start_time > GAIT_DELAY * 2) {
+        // Переключение фазы
+        current_phase = (current_phase == GaitPhase::PHASE1) ? 
+            GaitPhase::PHASE2 : GaitPhase::PHASE1;
+        
+        // Установка новых целей
+        for(int leg = 0; leg < TOTAL_LEGS; leg++) {
+            hexapod.set_target_position(
+                static_cast<LegID>(leg),
+                tripod_positions[static_cast<int>(current_phase)][leg]
+            );
         }
+        phase_start_time = millis();
+    }
+
+    hexapod.update_all_legs();
+}
+
+
+
+void handle_command(const char* cmd) {
+    if(strcmp(cmd, "FWD") == 0) {
+        is_moving = true;
+        current_phase = GaitPhase::PHASE1;
+        phase_start_time = millis();
+        Logger::log(Logger::INFO, "Start tripod gait forward");
+    }
+    else if(strcmp(cmd, "STOP") == 0) {
+        Logger::log(Logger::INFO, "Executing STOP command");
+        is_moving = false;
+        // Возврат в нейтральное положение
+        for(int leg = 0; leg < TOTAL_LEGS; leg++) {
+            hexapod.reset_pose(static_cast<LegID>(leg));
+        }
+    }
+    else if(strcmp(cmd, "CALIBRATE") == 0) {
+    Commands::calibration_mode();
+}
+    else {
+        Logger::log(Logger::WARNING, "Unknown command: %s", cmd);
     }
 }
 
@@ -79,32 +175,10 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
     }
 }
 
-void handle_command(const char* cmd) {
-    if(strcmp(cmd, "FWD") == 0) {
-        current_leg = LEG_FRONT_RIGHT;
-        start_movement();
-        return; 
-    }
-    else if(strcmp(cmd, "CALIBRATE") == 0) {
-        calibrate_servos();
-    }
-    else if(strcmp(cmd, "STOP") == 0) {
-        Logger::log(Logger::INFO, "Executing STOP command");
-        is_moving = false;
-        // Сброс всех ног
-        for(int leg = 0; leg < TOTAL_LEGS; leg++) {
-            hexapod.reset_pose(static_cast<LegID>(leg));
-        }
-        return;
-    }
-
-    Logger::log(Logger::INFO, "Command '%s' received (not implemented yet)", cmd);
-}
-
 void start_movement() {
     is_moving = true;
     step_start_time = millis();
-    Logger::log(Logger::INFO, "Starting movement for leg %d", current_leg);
+    Logger::log(Logger::INFO, "Starting movement for leg %d", static_cast<int>(active_leg));
 }
 
 void calibrate_servos() {
