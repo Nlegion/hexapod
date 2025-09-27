@@ -1,0 +1,119 @@
+Документация по контроллеру находится в папке docs
+ Hardware 32 channels 24 channels 16 channels
+Operating Voltage 5V 5V 5V
+Servo Motor Input Voltage According to the servo According to the servo According to the servo
+CPU 32bit 32bit 32bit
+Baud Rate（USB） 115200 115200 115200
+Baud Rate
+（Bluetooth、WIFI、UART）
+4800、9600、19200、
+38400、57600、115200
+4800、9600、19200、
+38400、57600、115200
+4800、9600、19200、
+38400、57600、115200
+Flash Capacity 16M 16M 16M
+Servo motor synchronous
+quantity
+32 24 16
+Max Action Groups 255 255 255
+control precision 1us 1us 1us
+Servo Motor signal isolation Yes Yes Yes
+Current limiting protection No Yes Yes
+MPU6500 No Yes NO
+External sensor support No No Yes
+3D Virtual All All Part
+Indicator led
+1.CPU power indicator
+led（red）
+2.Servo motor power
+indicator led（green）
+3. wireless remote
+control（Yellow）
+1.CPU power indicator
+led（red）
+2.Servo motor power
+indicator led（green）
+3.wireless remote
+control（Yellow）
+1.CPU power indicator
+led（red）
+2.Servo motor power
+indicator led（green）
+3.wireless remote
+control（Yellow）
+Size 64mm X 45mm 64mm X 47.5mm 58.5mm x 45mm
+Communication Protocol UART UART UART
+Computer Software
+Windows XP or later，
+Mac OS 10.8 or
+later ,Linux(kernel 3.0
+or later)
+Windows XP or later，
+Mac OS 10.8 or
+later ,Linux(kernel 3.0
+or later)
+Windows XP or later，
+Mac OS 10.8 or
+later ,Linux(kernel 3.0
+or later)
+Low pressure alarm Default Open Default Open Default Open
+Servo motor initial value Default 1500 Default 1500 Default 1500
+Support The Servo motor Type 9G~55G 9G~55G
+Online Operations Support
+C51、Arduino、ARM、
+MSP、DSP、 WIFI、
+Bluetooth、Compute
+C51、Arduino、ARM、
+MSP、DSP、 WIFI、
+Bluetooth、Computer
+C51、Arduino、ARM、
+MSP、DSP、 WIFI、
+Bluetooth、Computer
+wireless remote control
+1. one servo motor
+control
+2. action groups
+control
+1. one servo motor
+control
+2. action groups
+control
+1. one servo motor
+control
+2. action groups
+control    сервоприводы mg90s 
+Communication Protocol:
+serial communication baud rate parity bit data bits stop bits
+TTL 9600(default) none 8 1
+Instruction format:
+name Instruction description
+Controller single servo #1P1500T1000D800\r\n
+Data 1 refers to the servo’s channel
+Data 1500 Refers to the servo’s location,
+in the range 500-2500
+Data 1000 refers to the time of execution
+and represents the speed, in the range
+100-9999
+Data 800 refers to the Instruction interval of
+delay time, in the range 100-9999
+Controller multiple servo #1P1500#2P1500T1000D800\r\n
+Data 1、2 refers to the servo’s channel
+Data 1500 Refers to the servo’s location,
+in the range 500-2500
+Data 1000 refers to the time of execution
+and represents the speed, in the range
+100-9999
+Data 800 refers to the Instruction interval of
+delay time, in the range 100-9999
+Run action groups G1F3\r\n
+Data 1 refers to the group’s channel
+Data 3 refers to the frequency of runs
+Stop action groups ~ST
+Stop running action groups (Note: not
+pause)
+Note:“\r\n”converted to hexadecimal is“0X0D 0X0A”;All instruction is ASCII.
+“0x0D”==“\r”==“CR”
+“0x0A”==“\n”==“LF”
+Tip: If the function or software used in the program has “\r\n”, it is not necessary
+to add it at the end. When the instruction is completed Controller feedback“OK”.

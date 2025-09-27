@@ -3,239 +3,213 @@
 #include <ESP8266WebServer.h>
 #include <WebSocketsServer.h>
 #include <Hash.h>
-#include "page_html.h"
 
-String CommOut = "";
-String CommIn = "";
-String lastComm = "";
-int StepSpeed = 50;
-int lastSpeed = 50;
-int SMov[32] = {1440, 1440, 1440, 0, 1440, 1440, 1440, 0, 0, 0, 0, 0, 1440, 1440, 1440, 0, 1440, 1440, 1440, 0, 0, 0, 0, 0, 1440, 1440, 1440, 0, 1440, 1440, 1440, 0};
-int SAdj[32] = {0};
-int StaBlink = 0;
-unsigned long previousMillis = 0;
-const long interval = 1000; // Интервал 1 секунда
-int ClawPos = 1500;
+String CommOut=""; String CommIn=""; String lastComm = "";
+int StepSpeed = 50; int lastSpeed = 50;
+int SMov[32]={1440,1440,1440,0,1440,1440,1440,0,0,0,0,0,1440,1440,1440,0,1440,1440,1440,0,0,0,0,0,1440,1440,1440,0,1440,1440,1440,0};
+int SAdj[32]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+int StaBlink=0; int IntBlink=0;
+int ClawPos=1500;
 
-// SSID and Password to your Wi-Fi network
-const char* ssid = "Homenet_plus";
-const char* password = "29pronto69";
+//SSID and Password to your ESP Access Point
+const char* ssid = "HexapodWifi";
+const char* password = "12345678";
 
-WebSocketsServer webSocket(81);
+static const char PROGMEM INDEX_HTML[] = R"rawliteral(
+<!DOCTYPE html><html><head><meta name = "viewport" content = "width = device-width, initial-scale = 1.0, maximum-scale = 1.0, user-scalable=0"><title>ESP8266 Spider Hexapod</title><style>"body { background-color: #808080; font-family: Arial, Helvetica, Sans-Serif; Color: #000000; }"
+#JD {text-align: center;}#JD {text-align: center;font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;font-size: 24px;}.foot {text-align: center;font-family: "Comic Sans MS", cursive;font-size: 9px;color: #F00;}
+.button {border: none;color: white;padding: 20px;text-align: center;text-decoration: none;display: inline-block;font-size: 16px;margin: 4px 2px;cursor: pointer;border-radius: 12px;width: 100%;}.red {background-color: #F00;}.green {background-color: #090;}.yellow {background-color:#F90;}.blue {background-color:#03C;}</style>
+<script>var websock;function start() {websock = new WebSocket('ws://' + window.location.hostname + ':81/');websock.onopen = function(evt) { console.log('websock open'); };websock.onclose = function(evt) { console.log('websock close'); };websock.onerror = function(evt) { console.log(evt); }; 
+websock.onmessage = function(evt) {console.log(evt);var e = document.getElementById('ledstatus');if (evt.data === 'ledon') { e.style.color = 'red';}else if (evt.data === 'ledoff') {e.style.color = 'black';} else {console.log('unknown event');}};} function buttonclick(e) {websock.send(e.id);}</script>
+</head><body onload="javascript:start();">&nbsp;<table width="100%" border="1"><tr><td bgcolor="#FFFF33" id="JD">Quadruped Controller</td></tr></table>
+<table width="100" height="249" border="0" align="center">
+<tr><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 20" type="button" onclick="buttonclick(this);" class="button red">Claw_Close</button> </label></form></td><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 1 1" type="button" onclick="buttonclick(this);" class="button green">Forward</button></label></form></td><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 21"  type="button" onclick="buttonclick(this);" class="button red">Claw_Open</button> </label></form></td></tr>
+<tr><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 3 1" type="button" onclick="buttonclick(this);" class="button green">Turn_Left</button></label></form></td><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 0 1"  type="button" onclick="buttonclick(this);" class="button red">Stop_all</button> </label></form></td><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 4 1"  type="button" onclick="buttonclick(this);" class="button green">Turn_Right</button></label></form></td></tr>
+<tr><td>&nbsp;</td><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 2 1" type="button" onclick="buttonclick(this);" class="button green">Backward</button></label></form></td><td>&nbsp;</td></tr>
+<tr><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 5 3" type="button" onclick="buttonclick(this);" class="button yellow">Shake </button></label></form></td><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 8 5"  type="button" onclick="buttonclick(this);" class="button blue">Head_up</button></label></form></td><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 6 3"  type="button" onclick="buttonclick(this);" class="button yellow">Wave</button></label></form></td></tr>
+<tr><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 16" type="button" onclick="buttonclick(this);" class="button blue">Twist_Left</button></label></form></td><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 9 5"  type="button" onclick="buttonclick(this);" class="button blue">Head_down</button> </label></form></td><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 17"  type="button" onclick="buttonclick(this);" class="button blue">Twist_Right</button> </label></form></td></tr>
+<tr><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 11 5" type="button" onclick="buttonclick(this);" class="button blue">Body_left</button> </label></form></td><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 13"  type="button" onclick="buttonclick(this);" class="button blue">Body_higher</button></label></form></td><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 10 5"  type="button" onclick="buttonclick(this);" class="button blue">Body_right</button></label></form></td></tr>
+<tr><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 12" type="button" onclick="buttonclick(this);" class="button yellow">Service</button> </label></form></td><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 14"  type="button" onclick="buttonclick(this);" class="button blue">Body_lower</button> </label></form></td><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 15"  type="button" onclick="buttonclick(this);" class="button yellow">Reset_Pose</button> </label></form></td></tr>
+<tr><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 0 0" type="button" onclick="buttonclick(this);" class="button yellow">Walk</button> </label></form></td><td align="center" valign="middle"><form name="form1" method="post" action="">&nbsp;</form></td><td align="center" valign="middle"><form name="form1" method="post" action=""><label><button id="w 7 1"  type="button" onclick="buttonclick(this);" class="button yellow">Run</button> </label></form></td></tr>
+</table><p class="foot">this application requires Mwilmar Quadruped platform.</p></body></html>
+)rawliteral";
+
+
+WebSocketsServer webSocket = WebSocketsServer(81);
 ESP8266WebServer server(80);
 
-/**
- * @brief Setup function to initialize the system.
- */
 void setup() {
-  pinMode(LED_BUILTIN, OUTPUT);
-  Serial.begin(9600);
-  Serial.println(">> Setup");
-
-  // Connect to existing Wi-Fi network
-  WiFi.begin(ssid, password);
-  unsigned long startTime = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - startTime < 10000) {
-    delay(500);
-    Serial.print(".");
+  pinMode(LED_BUILTIN, OUTPUT); 
+  Serial.begin(115200);
+  Serial.println (">> Setup");
+  for(uint8_t t = 4;t > 0;t--) {
+    Serial.flush();
+    delay(1000);
   }
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("Connection failed!");
-    // Действия при ошибке
-    ESP.restart(); // Перезагрузка устройства при ошибке подключения
-  }
-
+  delay(1000);
+  WiFi.mode(WIFI_AP);           //Only Access point
+  WiFi.softAP(ssid, password);  //Start HOTspot removing password will disable security
+ 
+  IPAddress myIP = WiFi.softAPIP(); //Get IP address
   Serial.println("");
   Serial.print("Connected to ");
   Serial.println(ssid);
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
+  Serial.print("IP address: ");   
+  Serial.println(myIP);
 
-  server.on("/", []() {
-    server.send(200, "text/html", PAGE_HTML);
-  });
+    server.on("/", [](){
+    server.send(200, "text/html", INDEX_HTML);
+    });
+    
+    server.begin();
+    
+    webSocket.begin();
+    webSocket.onEvent(webSocketEvent);
 
-  server.begin();
-  webSocket.begin();
-  webSocket.onEvent(webSocketEvent);
-
-  // Initialize watchdog timer
-  ESP.wdtEnable(WDTO_8S); // Enable watchdog timer with 8 seconds timeout
 }
 
-/**
- * @brief Main loop function to handle continuous tasks.
- */
 void loop() {
-  if (Serial.available() > 0) {
-    char c[] = {(char)Serial.read()};
-    webSocket.broadcastTXT(c, sizeof(c));
-  }
-
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousMillis >= interval) {
-    previousMillis = currentMillis;
-    StaBlink = !StaBlink;
-    digitalWrite(LED_BUILTIN, StaBlink ? HIGH : LOW);
-
-    // Reset watchdog timer
-    ESP.wdtFeed();
-  }
-
-  webSocket.loop();
-  server.handleClient();
-
-  if (CommOut == "w_0_1") Move_STP(); // Stop
-  else if (CommOut == "w_1_1") Move_FWD(); // Forward
-  else if (CommOut == "w_2_1") Move_BWD(); // Backward
-  else if (CommOut == "w_3_1") Move_LFT(); // Turn Left
-  else if (CommOut == "w_4_1") Move_RGT(); // Turn Right
-  else if (CommOut == "w_5_3") {
-    lastSpeed = StepSpeed;
-    StepSpeed = 300;
-    Move_SHK();
-    StepSpeed = lastSpeed;
-    CommOut = lastComm;
-  }
-  else if (CommOut == "w_6_3") {
-    lastSpeed = StepSpeed;
-    StepSpeed = 300;
-    Move_WAV();
-    StepSpeed = lastSpeed;
-    CommOut = lastComm;
-  }
-  else if (CommOut == "w_15") {
-    Pos_INT();
-    CommOut = lastComm;
-  }
-  else if (CommOut == "w_12") {
-    Pos_SRV();
-    CommOut = lastComm;
-  }
-  else if (CommOut == "w_11_5") {
-    Adj_LF();
-    CommOut = lastComm;
-  }
-  else if (CommOut == "w_10_5") {
-    Adj_RG();
-    CommOut = lastComm;
-  }
-  else if (CommOut == "w_8_5") {
-    Adj_HU();
-    CommOut = lastComm;
-  }
-  else if (CommOut == "w_9_5") {
-    Adj_HD();
-    CommOut = lastComm;
-  }
-  else if (CommOut == "w_13") {
-    Adj_HG();
-    CommOut = lastComm;
-  }
-  else if (CommOut == "w_14") {
-    Adj_LW();
-    CommOut = lastComm;
-  }
-  else if (CommOut == "w_16") {
-    Adj_TL();
-    CommOut = lastComm;
-  }
-  else if (CommOut == "w_17") {
-    Adj_TR();
-    CommOut = lastComm;
-  }
-  else if (CommOut == "w_0_0") {
-    StepSpeed = 300;
-    CommOut = lastComm;
-  }
-  else if (CommOut == "w_7_1") {
-    StepSpeed = 50;
-    CommOut = lastComm;
-  }
-  else if (CommOut == "w_20") {
-    ClwCls();
-    CommOut = lastComm;
-  }
-  else if (CommOut == "w_21") {
-    ClwOpn();
-    CommOut = lastComm;
-  }
+   if (Serial.available() > 0){
+      char c[] = {(char)Serial.read()};
+      webSocket.broadcastTXT(c, sizeof(c));
+   }
+    
+   IntBlink +=1;
+   if (IntBlink >=5000){
+      if (StaBlink ==0){
+        digitalWrite(LED_BUILTIN, HIGH); 
+        StaBlink=1;
+      } else {
+        digitalWrite(LED_BUILTIN, LOW); 
+        StaBlink=0;
+      }
+    IntBlink =0;
+   }
+   webSocket.loop();
+   server.handleClient();
+   if (CommOut == "w 0 1") Move_STP(); //~~~~~~~~ Stop
+   if (CommOut == "w 1 1") Move_FWD(); //~~~~~~~~ Forward
+   if (CommOut == "w 2 1") Move_BWD(); //~~~~~~~~ backward
+   if (CommOut == "w 3 1") Move_LFT(); //~~~~~~~~ turn left
+   if (CommOut == "w 4 1") Move_RGT(); //~~~~~~~~ turn right
+   //~~~~~~~~ shake hand
+   if (CommOut == "w 5 3"){
+     lastSpeed = StepSpeed;StepSpeed = 300;
+     Move_SHK();StepSpeed = lastSpeed;CommOut=lastComm;
+   }
+   //~~~~~~~~ waving
+   if (CommOut == "w 6 3"){
+     lastSpeed = StepSpeed;StepSpeed = 300;
+     Move_WAV();StepSpeed = lastSpeed;CommOut=lastComm;
+   }
+   //~~~~~~~~ pos initial
+   if (CommOut == "w 15") {
+    Pos_INT();CommOut=lastComm;
+   }
+   //~~~~~~~~ pos service
+   if (CommOut == "w 12") {
+    Pos_SRV();CommOut=lastComm;
+   }
+   //~~~~~~~~ adjust body left
+   if (CommOut == "w 11 5") {
+    Adj_LF();CommOut=lastComm;
+   }
+   //~~~~~~~~ adjust body right
+   if (CommOut == "w 10 5") {
+    Adj_RG();CommOut=lastComm;
+   }
+   //~~~~~~~~ adjust head up
+   if (CommOut == "w 8 5") {
+    Adj_HU();CommOut=lastComm;
+   }
+   //~~~~~~~~ adjust head down
+   if (CommOut == "w 9 5") {
+    Adj_HD();CommOut=lastComm;
+   }
+   //~~~~~~~~ adjust body higher
+   if (CommOut == "w 13") {
+    Adj_HG();CommOut=lastComm;
+   }
+   //~~~~~~~~ adjust body lower
+   if (CommOut == "w 14") {
+    Adj_LW();CommOut=lastComm;
+   }
+   //~~~~~~~~ adjust twist left
+   if (CommOut == "w 16") {
+    Adj_TL();CommOut=lastComm;
+   }
+   //~~~~~~~~ adjust twist right
+   if (CommOut == "w 17") {
+    Adj_TR();CommOut=lastComm;
+   }
+   //~~~~~~~~ adjust speed walk
+   if (CommOut == "w 0 0") {
+    StepSpeed = 300;CommOut=lastComm;
+   }
+   //~~~~~~~~ adjust speed run
+   if (CommOut == "w 7 1") {
+    StepSpeed = 50;CommOut=lastComm;
+   }
+   //~~~~~~~  claw close
+   if (CommOut == "w 20") {
+    ClwCls();CommOut=lastComm;
+   }
+   //~~~~~~~~~~~ claw open
+   if (CommOut == "w 21") {
+    ClwOpn();CommOut=lastComm;
+   }
 }
 
-/**
- * @brief WebSocket event handler.
- * @param num Client number.
- * @param type Event type.
- * @param payload Data payload.
- * @param length Length of the payload.
- */
-void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
-  switch (type) {
+void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length)
+{
+  switch(type) {
     case WStype_DISCONNECTED:
-      Serial.printf("[%u] Disconnected!\n", num);
       break;
     case WStype_CONNECTED:
       {
         IPAddress ip = webSocket.remoteIP(num);
-        Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
       }
       break;
     case WStype_TEXT:
-      if (length > 0 && payload[length - 1] == '\0') {
-        lastComm = CommOut;
-        CommOut = (char*)payload; // Автоматическое преобразование
-        webSocket.broadcastTXT(payload, length);
-      } else {
-        Serial.println("Error: Received text is not null-terminated");
-      }
+      lastComm = CommOut; CommOut = "";
+      for(int i = 0;i < length;i++) CommOut += ((char) payload[i]);
+      // send data to all connected clients
+      webSocket.broadcastTXT(payload, length);
       break;
     case WStype_BIN:
       hexdump(payload, length);
+      // echo data back to browser
       webSocket.sendBIN(num, payload, length);
-      break;
-    default:
-      break;
+      break;default:break;
   }
 }
 
-/**
- * @brief Sends a command to the serial port.
- */
 void Send_Comm() {
-  char buffer[256];
-  int len = 0;
-
-  for (int i = 1; i < 32; i++) {
-    if (i >= 0 && i < 32 && SMov[i] >= 600 && SMov[i] <= 2280) {
-      len += sprintf(buffer + len, "#%dP%d", i, SMov[i]);
-    } else {
-      Serial.printf("Error: Index %d out of bounds or value %d out of range\n", i, SMov[i]);
+  String SendString;int i;
+  for (i = 1;i < 32;i += 1) {
+    if (SMov[i]>=600 and SMov[i]<=2280){
+      SendString = SendString +"#" +i +"P" +String(SMov[i]);
     }
   }
-
-  len += sprintf(buffer + len, "T%dD0\r\n", StepSpeed);
-  Serial.print(buffer);
-  wait_serial_return_ok();
+  Serial.print (SendString +"T"+String(StepSpeed)+"D0\r\n");wait_serial_return_ok();
 }
 
-/**
- * @brief Waits for the serial port to return "OK".
- */
-void wait_serial_return_ok() {
-  char c[16];
-  int num = 0;
-  while (true) {
-    while (Serial.available() > 0) {
-      webSocket.loop();
-      server.handleClient();
-      c[num] = Serial.read();
-      num++;
-      if (num >= 15) num = 0;
+void wait_serial_return_ok()
+{  
+ // int TimeOut=0; 
+  int num=0; char c[16]; while(1)
+  {
+   // TimeOut +=1;
+    while(Serial.available() > 0)
+    {
+      webSocket.loop();server.handleClient();
+      c[num]=Serial.read();num++;
+      if(num>=15) num=0;
     }
-    if (num >= 2 && c[num - 2] == 'O' && c[num - 1] == 'K') break;
+    if(c[num-2]=='O'&&c[num-1]=='K') break;
+  //  if(TimeOut > 800000) break;
   }
 }
-
 
 
 //================================================================================= Servo Move =======================================================================
