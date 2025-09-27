@@ -136,6 +136,8 @@ void handle_command(const char* cmd) {
     }
   } else if (strcmp(cmd, "TRIPOD_TEST") == 0) {
     test_tripod_gait();
+  } else if (strcmp(cmd, "TRIPOD_INVERT") == 0) {
+    test_tripod_with_inverted_left_legs();
   } else if (strcmp(cmd, "JOINT_TEST") == 0) {
     test_joint_directions();
   } else if (strcmp(cmd, "TEST_SERVO32") == 0) {
@@ -329,158 +331,229 @@ void test_joint_directions() {
   Commands::reset_all_servos();
 }
 
-void test_tripod_gait() {
-  Logger::log(Logger::INFO, "Starting SAFE tripod gait with CONSERVATIVE amplitude");
-  is_moving = false; // Остановить обычное движение
+void test_tripod_with_inverted_left_legs() {
+  Logger::log(Logger::INFO, "Starting INVERTED LEFT LEGS tripod test");
+  is_moving = false;
   
   const char* leg_names[] = {"FR", "MR", "RR", "RL", "ML", "FL"};
-  const int LIFT_AMOUNT = 40;  // БЕЗОПАСНАЯ величина подъема (было 120!)
-  const int FORWARD_AMOUNT = 30; // БЕЗОПАСНАЯ величина движения вперед (было 80!)
+  const int LIFT_AMOUNT = 40;
+  const int FORWARD_AMOUNT = 30;
   
-  Logger::log(Logger::INFO, "Using lift: %d, forward: %d", LIFT_AMOUNT, FORWARD_AMOUNT);
+  Logger::log(Logger::INFO, "Testing with INVERTED logic for left legs");
   
-  // Сначала установить всех в стартовую позицию
-  Logger::log(Logger::INFO, "Setting all legs to startup position");
   Commands::reset_all_servos();
   delay(2000);
   
-  // Тест полной трипоидной походки с движением вперед
-  for (int cycle = 0; cycle < 2; cycle++) {
-    Logger::log(Logger::INFO, "Enhanced tripod cycle %d", cycle + 1);
+  for (int cycle = 0; cycle < 1; cycle++) {
+    Logger::log(Logger::INFO, "Inverted test cycle %d", cycle + 1);
     
-    // === ФАЗА 1: Группа 1 в воздухе, движется вперед ===
-    Logger::log(Logger::INFO, "PHASE 1: Group 1 (FR,ML,RR) lifting and moving forward");
-    int group1[] = {LEG_FRONT_RIGHT, LEG_MIDDLE_LEFT, LEG_REAR_RIGHT};
-    int group2[] = {LEG_FRONT_LEFT, LEG_MIDDLE_RIGHT, LEG_REAR_LEFT};
+    // === ФАЗА 1: FR, ML, RR поднимаются (ML с инверсией!) ===
+    Logger::log(Logger::INFO, "PHASE 1: FR normal, ML INVERTED, RR normal");
     
-    // Поднимаем группу 1 и двигаем вперед
-    for (int i = 0; i < 3; i++) {
-      int leg = group1[i];
-      
-      // Простая логика без лишних инверсий - таблица LEG_LIFT_DIRECTIONS уже правильная
-      int coxa_pulse = constrain(
-        NEUTRAL + LEG_OFFSETS[leg][COXA] + FORWARD_AMOUNT, 
-        MIN_PULSE, MAX_PULSE);
-      
-      int femur_pulse = constrain(
-        NEUTRAL + LEG_OFFSETS[leg][FEMUR] + (LEG_LIFT_DIRECTIONS[leg][FEMUR] * LIFT_AMOUNT), 
-        MIN_PULSE, MAX_PULSE);
-      
-      int tibia_pulse = constrain(
-        NEUTRAL + LEG_OFFSETS[leg][TIBIA] + (LEG_LIFT_DIRECTIONS[leg][TIBIA] * LIFT_AMOUNT), 
-        MIN_PULSE, MAX_PULSE);
-      
-      Logger::log(Logger::INFO, "Group1 %s: COXA=%d (+%d), FEMUR=%d (%+d), TIBIA=%d (%+d)", 
-                 leg_names[leg], coxa_pulse, FORWARD_AMOUNT,
-                 femur_pulse, LEG_LIFT_DIRECTIONS[leg][FEMUR] * LIFT_AMOUNT,
-                 tibia_pulse, LEG_LIFT_DIRECTIONS[leg][TIBIA] * LIFT_AMOUNT);
-      
-      SafetySystem::set_servo(LEG_SERVO_MAP[leg][COXA], coxa_pulse);
-      SafetySystem::set_servo(LEG_SERVO_MAP[leg][FEMUR], femur_pulse);
-      SafetySystem::set_servo(LEG_SERVO_MAP[leg][TIBIA], tibia_pulse);
-    }
+    // FR (Front Right) - нормально
+    int fr_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_RIGHT][COXA] + FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE);
+    int fr_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_RIGHT][FEMUR] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE);
+    int fr_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_RIGHT][TIBIA] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE);
     
-    // Одновременно группа 2 на земле толкает назад
-    for (int i = 0; i < 3; i++) {
-      int leg = group2[i];
-      
-      int coxa_pulse = constrain(
-        NEUTRAL + LEG_OFFSETS[leg][COXA] - FORWARD_AMOUNT, 
-        MIN_PULSE, MAX_PULSE);
-      
-      int femur_pulse = constrain(
-        NEUTRAL + LEG_OFFSETS[leg][FEMUR], 
-        MIN_PULSE, MAX_PULSE);
-      
-      int tibia_pulse = constrain(
-        NEUTRAL + LEG_OFFSETS[leg][TIBIA], 
-        MIN_PULSE, MAX_PULSE);
-      
-      Logger::log(Logger::INFO, "Group2 %s: COXA=%d (-%d), ground support", 
-                 leg_names[leg], coxa_pulse, FORWARD_AMOUNT);
-      
-      SafetySystem::set_servo(LEG_SERVO_MAP[leg][COXA], coxa_pulse);
-      SafetySystem::set_servo(LEG_SERVO_MAP[leg][FEMUR], femur_pulse);
-      SafetySystem::set_servo(LEG_SERVO_MAP[leg][TIBIA], tibia_pulse);
-    }
+    // ML (Middle Left) - ИНВЕРТИРОВАННАЯ логика
+    int ml_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_LEFT][COXA] + FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE);
+    int ml_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_LEFT][FEMUR] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ!
+    int ml_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_LEFT][TIBIA] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ!
     
-    delay(2000); // Время для выполнения движения
+    // RR (Rear Right) - нормально  
+    int rr_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_RIGHT][COXA] + FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE);
+    int rr_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_RIGHT][FEMUR] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE);
+    int rr_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_RIGHT][TIBIA] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE);
     
-    // Опускаем группу 1 
-    Logger::log(Logger::INFO, "Lowering group 1 to ground");
-    for (int i = 0; i < 3; i++) {
-      int leg = group1[i];
-      
-      int coxa_pulse = constrain(
-        NEUTRAL + LEG_OFFSETS[leg][COXA] + FORWARD_AMOUNT, 
-        MIN_PULSE, MAX_PULSE);
-      
-      int femur_pulse = constrain(NEUTRAL + LEG_OFFSETS[leg][FEMUR], MIN_PULSE, MAX_PULSE);
-      int tibia_pulse = constrain(NEUTRAL + LEG_OFFSETS[leg][TIBIA], MIN_PULSE, MAX_PULSE);
-      
-      SafetySystem::set_servo(LEG_SERVO_MAP[leg][COXA], coxa_pulse);
-      SafetySystem::set_servo(LEG_SERVO_MAP[leg][FEMUR], femur_pulse);
-      SafetySystem::set_servo(LEG_SERVO_MAP[leg][TIBIA], tibia_pulse);
-    }
-    delay(1000);
+    Logger::log(Logger::INFO, "FR: COXA=%d, FEMUR=%d (+%d), TIBIA=%d (-%d)", fr_coxa, fr_femur, LIFT_AMOUNT, fr_tibia, LIFT_AMOUNT);
+    Logger::log(Logger::INFO, "ML: COXA=%d, FEMUR=%d (-%d), TIBIA=%d (+%d) [INVERTED]", ml_coxa, ml_femur, LIFT_AMOUNT, ml_tibia, LIFT_AMOUNT);
+    Logger::log(Logger::INFO, "RR: COXA=%d, FEMUR=%d (+%d), TIBIA=%d (-%d)", rr_coxa, rr_femur, LIFT_AMOUNT, rr_tibia, LIFT_AMOUNT);
     
-    // === ФАЗА 2: Группа 2 в воздухе, движется вперед ===
-    Logger::log(Logger::INFO, "PHASE 2: Group 2 (FL,MR,RL) lifting and moving forward");
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_FRONT_RIGHT][COXA], fr_coxa);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_FRONT_RIGHT][FEMUR], fr_femur);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_FRONT_RIGHT][TIBIA], fr_tibia);
     
-    // Поднимаем группу 2 и двигаем вперед
-    for (int i = 0; i < 3; i++) {
-      int leg = group2[i];
-      
-      int coxa_pulse = constrain(
-        NEUTRAL + LEG_OFFSETS[leg][COXA] + FORWARD_AMOUNT, 
-        MIN_PULSE, MAX_PULSE);
-      
-      int femur_pulse = constrain(
-        NEUTRAL + LEG_OFFSETS[leg][FEMUR] + (LEG_LIFT_DIRECTIONS[leg][FEMUR] * LIFT_AMOUNT), 
-        MIN_PULSE, MAX_PULSE);
-      
-      int tibia_pulse = constrain(
-        NEUTRAL + LEG_OFFSETS[leg][TIBIA] + (LEG_LIFT_DIRECTIONS[leg][TIBIA] * LIFT_AMOUNT), 
-        MIN_PULSE, MAX_PULSE);
-      
-      Logger::log(Logger::INFO, "Group2 %s: COXA=%d (+%d), FEMUR=%d (%+d), TIBIA=%d (%+d)", 
-                 leg_names[leg], coxa_pulse, FORWARD_AMOUNT,
-                 femur_pulse, LEG_LIFT_DIRECTIONS[leg][FEMUR] * LIFT_AMOUNT,
-                 tibia_pulse, LEG_LIFT_DIRECTIONS[leg][TIBIA] * LIFT_AMOUNT);
-      
-      SafetySystem::set_servo(LEG_SERVO_MAP[leg][COXA], coxa_pulse);
-      SafetySystem::set_servo(LEG_SERVO_MAP[leg][FEMUR], femur_pulse);
-      SafetySystem::set_servo(LEG_SERVO_MAP[leg][TIBIA], tibia_pulse);
-    }
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_MIDDLE_LEFT][COXA], ml_coxa);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_MIDDLE_LEFT][FEMUR], ml_femur);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_MIDDLE_LEFT][TIBIA], ml_tibia);
     
-    // Группа 1 на земле толкает назад
-    for (int i = 0; i < 3; i++) {
-      int leg = group1[i];
-      
-      int coxa_pulse = constrain(
-        NEUTRAL + LEG_OFFSETS[leg][COXA] - FORWARD_AMOUNT, 
-        MIN_PULSE, MAX_PULSE);
-      
-      SafetySystem::set_servo(LEG_SERVO_MAP[leg][COXA], coxa_pulse);
-    }
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_REAR_RIGHT][COXA], rr_coxa);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_REAR_RIGHT][FEMUR], rr_femur);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_REAR_RIGHT][TIBIA], rr_tibia);
     
+    delay(4000); // Долго для наблюдения
+    
+    // Сброс
+    Logger::log(Logger::INFO, "Resetting all to neutral");
+    Commands::reset_all_servos();
     delay(2000);
     
+    // === ФАЗА 2: FL, MR, RL (FL и RL с инверсией!) ===
+    Logger::log(Logger::INFO, "PHASE 2: FL INVERTED, MR normal, RL INVERTED");
+    
+    // FL (Front Left) - ИНВЕРТИРОВАННАЯ логика  
+    int fl_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][COXA] + FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE);
+    int fl_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][FEMUR] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ!
+    int fl_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][TIBIA] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ!
+    
+    // MR (Middle Right) - нормально
+    int mr_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_RIGHT][COXA] + FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE);
+    int mr_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_RIGHT][FEMUR] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE);
+    int mr_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_RIGHT][TIBIA] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE);
+    
+    // RL (Rear Left) - ИНВЕРТИРОВАННАЯ логика
+    int rl_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][COXA] + FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE);
+    int rl_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][FEMUR] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ!
+    int rl_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][TIBIA] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ!
+    
+    Logger::log(Logger::INFO, "FL: COXA=%d, FEMUR=%d (-%d), TIBIA=%d (+%d) [INVERTED]", fl_coxa, fl_femur, LIFT_AMOUNT, fl_tibia, LIFT_AMOUNT);
+    Logger::log(Logger::INFO, "MR: COXA=%d, FEMUR=%d (+%d), TIBIA=%d (-%d)", mr_coxa, mr_femur, LIFT_AMOUNT, mr_tibia, LIFT_AMOUNT);
+    Logger::log(Logger::INFO, "RL: COXA=%d, FEMUR=%d (-%d), TIBIA=%d (+%d) [INVERTED]", rl_coxa, rl_femur, LIFT_AMOUNT, rl_tibia, LIFT_AMOUNT);
+    
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_FRONT_LEFT][COXA], fl_coxa);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_FRONT_LEFT][FEMUR], fl_femur);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_FRONT_LEFT][TIBIA], fl_tibia);
+    
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_MIDDLE_RIGHT][COXA], mr_coxa);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_MIDDLE_RIGHT][FEMUR], mr_femur);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_MIDDLE_RIGHT][TIBIA], mr_tibia);
+    
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_REAR_LEFT][COXA], rl_coxa);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_REAR_LEFT][FEMUR], rl_femur);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_REAR_LEFT][TIBIA], rl_tibia);
+    
+    delay(4000); // Долго для наблюдения
+  }
+  
+  Logger::log(Logger::INFO, "Inverted left legs test completed");
+  Commands::reset_all_servos();
+}
+
+void test_tripod_gait() {
+  Logger::log(Logger::INFO, "Starting EXPLICIT tripod gait with individual leg control");
+  is_moving = false;
+  
+  const char* leg_names[] = {"FR", "MR", "RR", "RL", "ML", "FL"};
+  const int LIFT_AMOUNT = 40;
+  const int FORWARD_AMOUNT = 30;
+  
+  Logger::log(Logger::INFO, "Using lift: %d, forward: %d", LIFT_AMOUNT, FORWARD_AMOUNT);
+  
+  // Стартовая позиция
+  Commands::reset_all_servos();
+  delay(2000);
+  
+  for (int cycle = 0; cycle < 2; cycle++) {
+    Logger::log(Logger::INFO, "Tripod cycle %d", cycle + 1);
+    
+    // === ФАЗА 1: FR, ML, RR поднимаются ===
+    Logger::log(Logger::INFO, "PHASE 1: Lifting FR, ML, RR");
+    
+    // FR (Front Right) - поднимаем
+    int fr_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_RIGHT][COXA] + FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE);
+    int fr_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_RIGHT][FEMUR] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // +LIFT для подъема
+    int fr_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_RIGHT][TIBIA] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // -LIFT для сгибания
+    
+    // ML (Middle Left) - поднимаем (ВНИМАНИЕ: может нуждаться в инверсии)
+    int ml_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_LEFT][COXA] + FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE);
+    int ml_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_LEFT][FEMUR] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // Попробуем +LIFT
+    int ml_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_LEFT][TIBIA] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // Попробуем -LIFT
+    
+    // RR (Rear Right) - поднимаем
+    int rr_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_RIGHT][COXA] + FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE);
+    int rr_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_RIGHT][FEMUR] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // +LIFT для подъема
+    int rr_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_RIGHT][TIBIA] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // -LIFT для сгибания
+    
+    Logger::log(Logger::INFO, "FR: COXA=%d, FEMUR=%d, TIBIA=%d", fr_coxa, fr_femur, fr_tibia);
+    Logger::log(Logger::INFO, "ML: COXA=%d, FEMUR=%d, TIBIA=%d", ml_coxa, ml_femur, ml_tibia);
+    Logger::log(Logger::INFO, "RR: COXA=%d, FEMUR=%d, TIBIA=%d", rr_coxa, rr_femur, rr_tibia);
+    
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_FRONT_RIGHT][COXA], fr_coxa);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_FRONT_RIGHT][FEMUR], fr_femur);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_FRONT_RIGHT][TIBIA], fr_tibia);
+    
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_MIDDLE_LEFT][COXA], ml_coxa);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_MIDDLE_LEFT][FEMUR], ml_femur);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_MIDDLE_LEFT][TIBIA], ml_tibia);
+    
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_REAR_RIGHT][COXA], rr_coxa);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_REAR_RIGHT][FEMUR], rr_femur);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_REAR_RIGHT][TIBIA], rr_tibia);
+    
+    // FL, MR, RL на земле толкают назад
+    Logger::log(Logger::INFO, "FL, MR, RL ground support pushing back");
+    
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_FRONT_LEFT][COXA], 
+        constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][COXA] - FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE));
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_MIDDLE_RIGHT][COXA], 
+        constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_RIGHT][COXA] - FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE));
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_REAR_LEFT][COXA], 
+        constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][COXA] - FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE));
+    
+    delay(3000); // Дольше для наблюдения
+    
+    // Опускаем группу 1
+    Logger::log(Logger::INFO, "Lowering FR, ML, RR to ground");
+    hexapod.reset_pose(static_cast<LegID>(LEG_FRONT_RIGHT));
+    hexapod.reset_pose(static_cast<LegID>(LEG_MIDDLE_LEFT));
+    hexapod.reset_pose(static_cast<LegID>(LEG_REAR_RIGHT));
+    delay(1000);
+    
+    // === ФАЗА 2: FL, MR, RL поднимаются ===
+    Logger::log(Logger::INFO, "PHASE 2: Lifting FL, MR, RL");
+    
+    // FL (Front Left) - поднимаем (ВНИМАНИЕ: может нуждаться в инверсии)
+    int fl_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][COXA] + FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE);
+    int fl_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][FEMUR] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // Попробуем +LIFT
+    int fl_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][TIBIA] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // Попробуем -LIFT
+    
+    // MR (Middle Right) - поднимаем
+    int mr_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_RIGHT][COXA] + FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE);
+    int mr_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_RIGHT][FEMUR] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // +LIFT для подъема
+    int mr_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_RIGHT][TIBIA] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // -LIFT для сгибания
+    
+    // RL (Rear Left) - поднимаем (ВНИМАНИЕ: может нуждаться в инверсии)
+    int rl_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][COXA] + FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE);
+    int rl_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][FEMUR] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // Попробуем +LIFT
+    int rl_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][TIBIA] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // Попробуем -LIFT
+    
+    Logger::log(Logger::INFO, "FL: COXA=%d, FEMUR=%d, TIBIA=%d", fl_coxa, fl_femur, fl_tibia);
+    Logger::log(Logger::INFO, "MR: COXA=%d, FEMUR=%d, TIBIA=%d", mr_coxa, mr_femur, mr_tibia);
+    Logger::log(Logger::INFO, "RL: COXA=%d, FEMUR=%d, TIBIA=%d", rl_coxa, rl_femur, rl_tibia);
+    
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_FRONT_LEFT][COXA], fl_coxa);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_FRONT_LEFT][FEMUR], fl_femur);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_FRONT_LEFT][TIBIA], fl_tibia);
+    
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_MIDDLE_RIGHT][COXA], mr_coxa);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_MIDDLE_RIGHT][FEMUR], mr_femur);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_MIDDLE_RIGHT][TIBIA], mr_tibia);
+    
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_REAR_LEFT][COXA], rl_coxa);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_REAR_LEFT][FEMUR], rl_femur);
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_REAR_LEFT][TIBIA], rl_tibia);
+    
+    // FR, ML, RR на земле толкают назад
+    Logger::log(Logger::INFO, "FR, ML, RR ground support pushing back");
+    
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_FRONT_RIGHT][COXA], 
+        constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_RIGHT][COXA] - FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE));
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_MIDDLE_LEFT][COXA], 
+        constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_LEFT][COXA] - FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE));
+    SafetySystem::set_servo(LEG_SERVO_MAP[LEG_REAR_RIGHT][COXA], 
+        constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_RIGHT][COXA] - FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE));
+    
+    delay(3000); // Дольше для наблюдения
+    
     // Опускаем группу 2
-    Logger::log(Logger::INFO, "Lowering group 2 to ground");
-    for (int i = 0; i < 3; i++) {
-      int leg = group2[i];
-      
-      int femur_pulse = constrain(NEUTRAL + LEG_OFFSETS[leg][FEMUR], MIN_PULSE, MAX_PULSE);
-      int tibia_pulse = constrain(NEUTRAL + LEG_OFFSETS[leg][TIBIA], MIN_PULSE, MAX_PULSE);
-      
-      SafetySystem::set_servo(LEG_SERVO_MAP[leg][FEMUR], femur_pulse);
-      SafetySystem::set_servo(LEG_SERVO_MAP[leg][TIBIA], tibia_pulse);
-    }
+    Logger::log(Logger::INFO, "Lowering FL, MR, RL to ground");
+    hexapod.reset_pose(static_cast<LegID>(LEG_FRONT_LEFT));
+    hexapod.reset_pose(static_cast<LegID>(LEG_MIDDLE_RIGHT));
+    hexapod.reset_pose(static_cast<LegID>(LEG_REAR_LEFT));
     delay(1000);
   }
   
-  Logger::log(Logger::INFO, "Enhanced tripod gait test completed - returning to neutral");
+  Logger::log(Logger::INFO, "Explicit tripod test completed");
   Commands::reset_all_servos();
 }
 

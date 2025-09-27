@@ -94,6 +94,7 @@ const char PROGMEM PAGE_HTML[] = R"=====(
                 <button class="diagnostic" onclick="send('DIAGNOSTIC')">Full Test</button>
                 <button class="diagnostic" onclick="send('RESET')">Reset All</button>
                 <button class="test" onclick="send('TRIPOD_TEST')">Tripod Test</button>
+                <button class="test" onclick="send('TRIPOD_INVERT')">Tripod Invert L</button>
             </div>
             <div class="test-grid" style="margin-top: 10px;">
                 <button class="diagnostic" onclick="send('JOINT_TEST')">Joint Directions</button>
