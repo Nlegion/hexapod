@@ -55,6 +55,19 @@ constexpr int LEG_OFFSETS[TOTAL_LEGS][NUM_JOINTS] = {
   /*FL*/ {  10, -10, 10 }   // Front Left - полная инверсия по отношению к FR
 };
 
+// Направления движения для подъема ног (+ или - относительно нейтрали)  
+// ВОССТАНОВЛЕНО: Правильная физика трипоидной походки
+// Левые и правые ноги ДОЛЖНЫ двигаться по-разному для корректной походки
+// [нога][сустав] = направление (+1 или -1)
+constexpr int LEG_LIFT_DIRECTIONS[TOTAL_LEGS][NUM_JOINTS] = {
+  /*FR*/ {  0, +1, -1 },  // Правые ноги: FEMUR +1 = вверх, TIBIA -1 = сгибание
+  /*MR*/ {  0, +1, -1 },  // Аналогично  
+  /*RR*/ {  0, +1, -1 },  // Аналогично
+  /*RL*/ {  0, -1, +1 },  // Левые ноги: FEMUR -1 = вверх, TIBIA +1 = сгибание  
+  /*ML*/ {  0, -1, +1 },  // (инвертированы относительно правых)
+  /*FL*/ {  0, -1, +1 }   // Аналогично
+};
+
 // Пределы углов безопасности
 constexpr int ANGLE_LIMITS[NUM_JOINTS][2] = {
   { -45, 45 },  // Coxa
@@ -67,11 +80,11 @@ constexpr char SSID[] = "Homenet_plus";
 constexpr char PASSWORD[] = "29pronto69";
 constexpr int WIFI_TIMEOUT = 20;
 
-// Servo
+// Servo - БЕЗОПАСНЫЕ пределы для MG90S на основе спецификаций
 constexpr int SERVOS_PER_LEG = 3;
-constexpr int MIN_PULSE = 500;   // Минимальный импульс для MG90S
-constexpr int MAX_PULSE = 2500;  // Максимальный импульс
-constexpr int NEUTRAL = 1500;
+constexpr int MIN_PULSE = 1000;  // Безопасный минимум для MG90S (0°)
+constexpr int MAX_PULSE = 2000;  // Безопасный максимум для MG90S (180°) 
+constexpr int NEUTRAL = 1500;    // Нейтральная позиция (90°)
 
 // Kinematics
 constexpr float BODY_RADIUS = 65.0f;   // Оптимизирован радиус тела

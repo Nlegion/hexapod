@@ -53,50 +53,82 @@ public:
   static void test_single_leg(int leg_id) {
     if (leg_id < 0 || leg_id >= TOTAL_LEGS) return;
     
-    Logger::log(Logger::INFO, "Testing leg %d", leg_id);
+    Logger::log(Logger::INFO, "Testing leg %d SAFELY", leg_id);
+    const char* joint_names[] = {"COXA", "FEMUR", "TIBIA"};
+    
+    // Безопасные пределы движения для тестирования
+    const int SAFE_RANGE = 150; // Уменьшено с 300 до 150
     
     // Тест каждого сустава ноги
     for (int joint = 0; joint < NUM_JOINTS; joint++) {
       int servo = LEG_SERVO_MAP[leg_id][joint];
       
-      // Движение в одну сторону
-      Commands::send_servo_direct(servo, NEUTRAL + 300);
-      delay(1000);
+      Logger::log(Logger::INFO, "Testing leg %d, joint %s (servo %d)", 
+                 leg_id, joint_names[joint], servo);
       
-      // Движение в другую сторону  
-      Commands::send_servo_direct(servo, NEUTRAL - 300);
-      delay(1000);
+      // Движение в одну сторону (с ограничением)
+      int pulse1 = constrain(NEUTRAL + SAFE_RANGE, MIN_PULSE, MAX_PULSE);
+      Commands::send_servo_direct(servo, pulse1);
+      Logger::log(Logger::INFO, "Servo %d -> %d", servo, pulse1);
+      delay(800);
       
-      // Возврат в нейтраль
-      Commands::send_servo_direct(servo, NEUTRAL + LEG_OFFSETS[leg_id][joint]);
+      // Движение в другую сторону (с ограничением)
+      int pulse2 = constrain(NEUTRAL - SAFE_RANGE, MIN_PULSE, MAX_PULSE);
+      Commands::send_servo_direct(servo, pulse2);
+      Logger::log(Logger::INFO, "Servo %d -> %d", servo, pulse2);
+      delay(800);
+      
+      // Возврат в нейтраль с калибровочным смещением
+      int neutral_pulse = constrain(NEUTRAL + LEG_OFFSETS[leg_id][joint], MIN_PULSE, MAX_PULSE);
+      Commands::send_servo_direct(servo, neutral_pulse);
+      Logger::log(Logger::INFO, "Servo %d -> neutral %d", servo, neutral_pulse);
       delay(500);
     }
+    Logger::log(Logger::INFO, "Leg %d test completed", leg_id);
   }
 
   static void diagnostic_sequence() {
-    Logger::log(Logger::INFO, "Starting diagnostic sequence");
+    Logger::log(Logger::INFO, "Starting SAFE diagnostic sequence");
     
-    // 1. Проверка всех сервоприводов по очереди
+    const int SAFE_DIAG_RANGE = 100; // Безопасный диапазон для диагностики
+    
+    // 1. Проверка всех сервоприводов по очереди с безопасными пределами
     for (int i = 1; i <= 32; i++) {
-      Logger::log(Logger::INFO, "Testing servo %d", i);
-      Commands::send_servo_direct(i, NEUTRAL + 200);
-      delay(300);
-      Commands::send_servo_direct(i, NEUTRAL - 200);  
-      delay(300);
+      Logger::log(Logger::INFO, "Testing servo %d safely", i);
+      
+      int pulse_high = constrain(NEUTRAL + SAFE_DIAG_RANGE, MIN_PULSE, MAX_PULSE);
+      Commands::send_servo_direct(i, pulse_high);
+      delay(250);
+      
+      int pulse_low = constrain(NEUTRAL - SAFE_DIAG_RANGE, MIN_PULSE, MAX_PULSE);
+      Commands::send_servo_direct(i, pulse_low);
+      delay(250);
+      
       Commands::send_servo_direct(i, NEUTRAL);
-      delay(200);
+      delay(150);
     }
     
-    Logger::log(Logger::INFO, "All servos tested");
+    Logger::log(Logger::INFO, "Safe diagnostic sequence completed");
+    
+    // Финальная проверка - сброс всех в стартовую позицию
+    delay(1000);
+    reset_all_servos();
   }
 
   static void reset_all_servos() {
-    Logger::log(Logger::INFO, "Resetting all servos to neutral + offsets");
+    Logger::log(Logger::INFO, "Resetting all servos to startup position");
+    // Используем ту же логику, что и при запуске
     for (int leg = 0; leg < TOTAL_LEGS; leg++) {
       for (int joint = 0; joint < NUM_JOINTS; joint++) {
         int servo = LEG_SERVO_MAP[leg][joint];
-        Commands::send_servo_direct(servo, NEUTRAL + LEG_OFFSETS[leg][joint]);
+        int startup_pulse = NEUTRAL + LEG_OFFSETS[leg][joint];
+        startup_pulse = constrain(startup_pulse, MIN_PULSE, MAX_PULSE);
+        Commands::send_servo_direct(servo, startup_pulse);
+        Logger::log(Logger::INFO, "Leg %d, Joint %d, Servo %d -> %d", 
+                   leg, joint, servo, startup_pulse);
       }
+      delay(100); // Небольшая задержка между ногами
     }
+    Logger::log(Logger::INFO, "Reset complete");
   }
 };

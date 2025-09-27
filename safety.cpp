@@ -50,10 +50,19 @@ void SafetySystem::update_load_monitor() {
 }
 
 void SafetySystem::emergency_stop() {
-  for (int i = 0; i < TOTAL_LEGS * SERVOS_PER_LEG; i++) {
-    Commands::send_servo(i, NEUTRAL);
+  Logger::log(Logger::ERROR, "EMERGENCY STOP - Setting all servos to neutral");
+  
+  // Отправляем команду сброса всех сервоприводов в нейтральное положение
+  // Используем прямую отправку для скорости
+  for (int servo = 1; servo <= 32; servo++) {
+    Commands::send_servo_direct(servo, NEUTRAL);
   }
-  Logger::log(Logger::ERROR, "EMERGENCY STOP");
+  
+  // Дополнительно отправляем глобальную команду остановки контроллера
+  Serial1.print("#0P0T0\r\n"); // Команда остановки всех сервоприводов
+  delay(100);
+  
+  Logger::log(Logger::ERROR, "EMERGENCY STOP COMPLETED - All servos stopped");
 }
 
 void SafetySystem::set_speed(float speed) {

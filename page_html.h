@@ -95,6 +95,17 @@ const char PROGMEM PAGE_HTML[] = R"=====(
                 <button class="diagnostic" onclick="send('RESET')">Reset All</button>
                 <button class="test" onclick="send('TRIPOD_TEST')">Tripod Test</button>
             </div>
+            <div class="test-grid" style="margin-top: 10px;">
+                <button class="diagnostic" onclick="send('JOINT_TEST')">Joint Directions</button>
+                <button class="diagnostic" onclick="send('TEST_SERVO32')">Test Servo 32</button>
+                <button></button>
+                <button></button>
+            </div>
+            <div style="margin-top: 15px; text-align: center;">
+                <button class="stop" onclick="send('EMERGENCY')" style="font-size: 18px; padding: 15px 30px;">
+                    ⚠️ EMERGENCY STOP ⚠️
+                </button>
+            </div>
         </div>
 
         <div class="control-section">
