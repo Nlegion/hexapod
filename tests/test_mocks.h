@@ -52,8 +52,12 @@ public:
         if (data.back() != '\n') std::cout << std::endl;
     }
     
-    void print(const char* data) {
-        print(std::string(data));
+    void print(const char* str) {
+        std::cout << str;
+    }
+    
+    void print(char* str) {
+        std::cout << str;
     }
     
     template<typename T>

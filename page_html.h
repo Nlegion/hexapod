@@ -40,6 +40,191 @@ const char PROGMEM PAGE_HTML[] = R"=====(
             gap: 10px;
             margin: 10px 0;
         }
+        
+        /* Hexapod Layout */
+        .hexapod-layout {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 2px dashed #dee2e6;
+        }
+        
+        .hex-row {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .hex-body {
+            width: 60px;
+            height: 60px;
+            background: #e9ecef;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #6c757d;
+        }
+        
+        .hex-symbol {
+            font-size: 24px;
+            font-weight: bold;
+            color: #495057;
+        }
+        
+        .hex-center-top, .hex-center-bottom {
+            width: 30px;
+            height: 20px;
+            background: #dee2e6;
+            border-radius: 5px;
+        }
+        
+        .leg-test {
+            width: 70px;
+            height: 50px;
+            font-size: 12px;
+            font-weight: bold;
+            line-height: 1.2;
+            border-radius: 8px;
+            border: 2px solid #007bff;
+        }
+        
+        .leg-test:hover {
+            border-color: #0056b3;
+            transform: scale(1.05);
+        }
+        
+        .front-left, .middle-left, .rear-left {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+            color: white;
+        }
+        
+        .front-right, .middle-right, .rear-right {
+            background: linear-gradient(135deg, #4ecdc4, #44a08d);
+            color: white;
+        }
+        
+        /* Header with status */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .status-compact {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            min-width: 200px;
+        }
+        
+        .status-compact > div {
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-weight: bold;
+            text-align: center;
+        }
+        
+        #connection-status {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        #connection-status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        #command-status {
+            background: #cce7ff;
+            color: #004085;
+            border: 1px solid #b3d7ff;
+            font-size: 11px;
+        }
+        
+        #command-status.executing {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        #command-status.completed {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        /* Coordinates display */
+        #coordinates-display {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .coord-info {
+            color: #6c757d;
+            font-style: italic;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .coord-phase {
+            background: #e9ecef;
+            border-left: 4px solid #007bff;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 0 5px 5px 0;
+        }
+        
+        .coord-phase h4 {
+            margin: 0 0 8px 0;
+            color: #007bff;
+            font-size: 14px;
+        }
+        
+        .coord-leg {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .coord-leg:last-child {
+            border-bottom: none;
+        }
+        
+        .coord-leg-name {
+            font-weight: bold;
+            min-width: 100px;
+        }
+        
+        .coord-values {
+            flex-grow: 1;
+            text-align: right;
+        }
+        
+        .coord-left {
+            color: #dc3545;
+        }
+        
+        .coord-right {
+            color: #28a745;
+        }
+        
         button {
             padding: 12px;
             font-size: 14px;
@@ -70,7 +255,13 @@ const char PROGMEM PAGE_HTML[] = R"=====(
 </head>
 <body>
     <div class="container">
-        <h1>🕷️ Hexapod Robot Control</h1>
+        <div class="header">
+            <h1>🕷️ Hexapod Robot Control</h1>
+            <div class="status-compact">
+                <div id="connection-status">Connecting...</div>
+                <div id="command-status">Ready</div>
+            </div>
+        </div>
         
         <div class="control-section">
             <h2>Movement Control</h2>
@@ -94,12 +285,11 @@ const char PROGMEM PAGE_HTML[] = R"=====(
                 <button class="diagnostic" onclick="send('DIAGNOSTIC')">Full Test</button>
                 <button class="diagnostic" onclick="send('RESET')">Reset All</button>
                 <button class="test" onclick="send('TRIPOD_TEST')">Tripod Test</button>
-                <button class="test" onclick="send('TRIPOD_INVERT')">Tripod Invert L</button>
             </div>
             <div class="test-grid" style="margin-top: 10px;">
                 <button class="diagnostic" onclick="send('JOINT_TEST')">Joint Directions</button>
-                <button class="diagnostic" onclick="send('TEST_SERVO32')">Test Servo 32</button>
-                <button class="test" onclick="send('FIXED_TRIPOD_TEST')">Fixed Tripod</button>
+                <button></button>
+                <button></button>
                 <button></button>
             </div>
             <div style="margin-top: 15px; text-align: center;">
@@ -111,54 +301,166 @@ const char PROGMEM PAGE_HTML[] = R"=====(
 
         <div class="control-section">
             <h2>Individual Leg Tests</h2>
-            <div class="test-grid">
-                <button class="leg-test" onclick="send('TEST_LEG_0')">FR (0)</button>
-                <button class="leg-test" onclick="send('TEST_LEG_1')">MR (1)</button>
-                <button class="leg-test" onclick="send('TEST_LEG_2')">RR (2)</button>
-                <button class="leg-test" onclick="send('TEST_LEG_3')">RL (3)</button>
-                <button class="leg-test" onclick="send('TEST_LEG_4')">ML (4)</button>
-                <button class="leg-test" onclick="send('TEST_LEG_5')">FL (5)</button>
+            <div class="hexapod-layout">
+                <div class="hex-row">
+                    <button class="leg-test front-left" onclick="send('TEST_LEG_5')">
+                        FL<br>(5)
+                    </button>
+                    <div class="hex-center-top"></div>
+                    <button class="leg-test front-right" onclick="send('TEST_LEG_0')">
+                        FR<br>(0)
+                    </button>
+                </div>
+                <div class="hex-row">
+                    <button class="leg-test middle-left" onclick="send('TEST_LEG_4')">
+                        ML<br>(4)
+                    </button>
+                    <div class="hex-body">
+                        <div class="hex-symbol">X</div>
+                    </div>
+                    <button class="leg-test middle-right" onclick="send('TEST_LEG_1')">
+                        MR<br>(1)
+                    </button>
+                </div>
+                <div class="hex-row">
+                    <button class="leg-test rear-left" onclick="send('TEST_LEG_3')">
+                        RL<br>(3)
+                    </button>
+                    <div class="hex-center-bottom"></div>
+                    <button class="leg-test rear-right" onclick="send('TEST_LEG_2')">
+                        RR<br>(2)
+                    </button>
+                </div>
             </div>
         </div>
 
         <div class="control-section">
-            <h2>Connection Status</h2>
-            <div id="status">Connecting...</div>
+            <h2>Live Coordinates</h2>
+            <div id="coordinates-display">
+                <div class="coord-info">Execute TRIPOD_TEST to see live leg coordinates</div>
+            </div>
         </div>
+
     </div>
 
     <script>
-        const status = document.getElementById('status');
+        const connectionStatus = document.getElementById('connection-status');
+        const commandStatus = document.getElementById('command-status');
+        const coordinatesDisplay = document.getElementById('coordinates-display');
         let ws = null;
 
         function connect() {
             ws = new WebSocket(`ws://${location.hostname}:81/`);
             
             ws.onopen = function() {
-                status.textContent = 'Connected to Hexapod ✓';
-                status.style.background = '#d4edda';
+                connectionStatus.textContent = 'Connected ✓';
+                connectionStatus.className = 'connected';
+                console.log("WebSocket connected");
             };
             
             ws.onclose = function() {
-                status.textContent = 'Disconnected. Reconnecting...';
-                status.style.background = '#f8d7da';
+                connectionStatus.textContent = 'Disconnected';
+                connectionStatus.className = '';
                 setTimeout(connect, 2000);
             };
             
             ws.onerror = function() {
-                status.textContent = 'Connection error';
-                status.style.background = '#f8d7da';
+                connectionStatus.textContent = 'Connection Error';
+                connectionStatus.className = '';
             };
+            
+            ws.onmessage = function(event) {
+                console.log("Received:", event.data);
+                handleWebSocketMessage(event.data);
+            };
+        }
+        
+        function handleWebSocketMessage(message) {
+            if (message.startsWith('COORD:')) {
+                // Координаты от TRIPOD_TEST
+                displayCoordinates(message.substring(6)); // убираем "COORD:"
+            } else if (message.startsWith('PHASE:')) {
+                // Начало новой фазы
+                displayPhase(message.substring(6)); // убираем "PHASE:"
+            } else if (message.startsWith('CLEAR_COORDS')) {
+                // Очищаем дисплей координат
+                clearCoordinatesDisplay();
+            }
+        }
+        
+        function clearCoordinatesDisplay() {
+            coordinatesDisplay.innerHTML = '<div class="coord-info">Execute TRIPOD_TEST to see live leg coordinates</div>';
+        }
+        
+        function displayPhase(phaseInfo) {
+            // Добавляем заголовок фазы
+            const phaseDiv = document.createElement('div');
+            phaseDiv.className = 'coord-phase';
+            phaseDiv.innerHTML = `<h4>${phaseInfo}</h4>`;
+            
+            // Очищаем предыдущие координаты если это первая фаза
+            if (phaseInfo.includes('PHASE 1') || phaseInfo.includes('ML (MIDDLE LEFT) DIAGNOSTIC')) {
+                coordinatesDisplay.innerHTML = '';
+            }
+            
+            coordinatesDisplay.appendChild(phaseDiv);
+            coordinatesDisplay.scrollTop = coordinatesDisplay.scrollHeight;
+        }
+        
+        function displayCoordinates(coordData) {
+            // Парсим данные координат: "LEG_NAME:TYPE:COXA:FEMUR:TIBIA"
+            const parts = coordData.split(':');
+            if (parts.length >= 5) {
+                const legName = parts[0];
+                const type = parts[1]; // LIFTING, GROUND, etc.
+                const coxa = parts[2];
+                const femur = parts[3];
+                const tibia = parts[4];
+                
+                const legDiv = document.createElement('div');
+                legDiv.className = 'coord-leg';
+                
+                // Определяем цвет (левая или правая нога)
+                const isLeft = legName.includes('L');
+                const colorClass = isLeft ? 'coord-left' : 'coord-right';
+                
+                legDiv.innerHTML = `
+                    <span class="coord-leg-name ${colorClass}">${legName}:</span>
+                    <span class="coord-values">COXA=${coxa}, FEMUR=${femur}, TIBIA=${tibia} [${type}]</span>
+                `;
+                
+                coordinatesDisplay.appendChild(legDiv);
+                coordinatesDisplay.scrollTop = coordinatesDisplay.scrollHeight;
+            }
         }
 
         window.send = function(cmd) {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(cmd);
+                
+                // Показываем статус команды
+                commandStatus.textContent = `Executing: ${cmd}`;
+                commandStatus.className = 'executing';
                 console.log("Sent command:", cmd);
+                
+                // Через 3 секунды показываем "завершено"
+                setTimeout(function() {
+                    commandStatus.textContent = `Completed: ${cmd}`;
+                    commandStatus.className = 'completed';
+                }, 3000);
+                
+                // Через 5 секунд возвращаем к "Ready"
+                setTimeout(function() {
+                    commandStatus.textContent = 'Ready';
+                    commandStatus.className = '';
+                }, 5000);
+                
             } else {
                 console.log("Error: Not connected to send:", cmd);
-                status.textContent = 'Error: Not connected';
-                status.style.background = '#f8d7da';
+                connectionStatus.textContent = 'Not Connected';
+                connectionStatus.className = '';
+                commandStatus.textContent = 'Connection Error';
+                commandStatus.className = '';
             }
         }
 
