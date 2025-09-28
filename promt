@@ -1,0 +1,196 @@
+# 🕷️ Hexapod Robot Project - AI Assistant Prompt
+
+## Project Overview
+You are helping debug and develop a 6-legged hexapod robot with tripod gait locomotion. The project has been migrated from Wemos D1 Mini to ESP32-S3-DevKitC-1 and uses a 32-channel servo controller.
+
+## Hardware Configuration
+
+### Main Controller
+- **MCU**: ESP32-S3-DevKitC-1
+- **Communication**: Serial1 (pins 4,5) to servo controller at 9600 baud
+- **Network**: WiFi connection for web-based control interface
+
+### Servo System  
+- **Controller**: 32-channel PWM servo controller (RTRobot compatible)
+- **Servos**: 18x MG90 micro servos (3 per leg)
+- **Pulse Range**: 1000-2000μs (safe range), 1500μs neutral
+- **Communication Protocol**: `#<channel>P<pulse>T<time>\r\n`
+
+### Physical Layout
+```
+       FL(5)     FR(0)
+        |   \   /   |
+        |    \ /    |  
+   ML(4)|     X     |MR(1)
+        |    / \    |
+        |   /   \   |
+       RL(3)     RR(2)
+
+Legend: FR=Front Right, FL=Front Left, MR=Middle Right, 
+        ML=Middle Left, RR=Rear Right, RL=Rear Left
+```
+
+### Servo Mapping (Channel → [COXA, FEMUR, TIBIA])
+```cpp
+constexpr uint8_t LEG_SERVO_MAP[TOTAL_LEGS][NUM_JOINTS] = {
+  /* LEG_FRONT_RIGHT  */ { 9, 10, 11 },
+  /* LEG_MIDDLE_RIGHT */ { 5, 6, 7 },
+  /* LEG_REAR_RIGHT   */ { 1, 2, 3 },
+  /* LEG_REAR_LEFT    */ { 32, 31, 30 },
+  /* LEG_MIDDLE_LEFT  */ { 28, 27, 26 },
+  /* LEG_FRONT_LEFT   */ { 21, 22, 23 }
+};
+```
+
+## Software Architecture
+
+### File Structure
+- `hexapod.ino` - Main program with WiFi, WebSocket, and gait control
+- `config.h` - Hardware mapping, calibration offsets, direction tables
+- `commands.h` - Servo communication and diagnostic functions  
+- `safety.h/.cpp` - Safety limits and emergency stop
+- `logger.h` - Timestamped logging system
+- `page_html.h` - Web control interface
+- `kinematics.h` - Leg controller (simplified for current implementation)
+
+### Calibration System
+
+#### Static Offsets (compensate for mechanical differences)
+```cpp
+constexpr int LEG_OFFSETS[TOTAL_LEGS][NUM_JOINTS] = {
+  /*FR*/ { -10, 10, -10 },  // Front Right
+  /*MR*/ {   0, -5,   5 },  // Middle Right  
+  /*RR*/ {   5,  0,   0 },  // Rear Right
+  /*RL*/ {  -5,  0,   0 },  // Rear Left
+  /*ML*/ {   0,  5,  -5 },  // Middle Left
+  /*FL*/ {  10, -10, 10 }   // Front Left
+};
+```
+
+#### Movement Directions (for tripod gait)
+```cpp  
+constexpr int LEG_LIFT_DIRECTIONS[TOTAL_LEGS][NUM_JOINTS] = {
+  /*FR*/ {  0, +1, -1 },  // Right legs: COXA neutral, FEMUR up, TIBIA bend
+  /*MR*/ {  0, +1, -1 },  
+  /*RR*/ {  0, +1, -1 },  
+  /*RL*/ {  0, -1, +1 },  // Left legs: COXA neutral, inverted FEMUR/TIBIA
+  /*ML*/ {  0, -1, +1 },  
+  /*FL*/ {  0, -1, +1 }   
+};
+```
+
+**Critical Discovery**: Left legs (RL, ML, FL) have inverted servo directions:
+- When positive offset applied: Right legs lift up ✓, Left legs contract down ✓
+- For lifting left legs: use negative FEMUR, positive TIBIA offsets
+- **COXA = 0**: Currently no forward/backward movement in tripod test (focuses only on lifting)
+
+### Control Interface  
+
+#### Web Commands
+- `FWD` - Forward movement using tripod gait
+- `STOP` - Emergency stop and return to neutral
+- `EMERGENCY` - Immediate servo shutdown
+- `CALIBRATE` - Sequential joint testing for calibration
+- `DIAGNOSTIC` - Test all 32 servos individually  
+- `RESET` - Return all servos to startup position
+- `JOINT_TEST` - Stable individual leg joint testing
+- `TRIPOD_TEST` - Test tripod gait leg lifting
+- `TEST_LEG_0` through `TEST_LEG_5` - Individual leg tests
+
+#### Diagnostic Procedures
+1. **Full Test**: Verify all 32 servos respond correctly
+2. **Reset All**: Confirm return to startup position  
+3. **Joint Directions**: Test individual leg movements systematically
+4. **Individual Leg Tests**: Isolate problems to specific legs
+5. **Tripod Test**: Verify group lifting behavior
+
+## Current Status & Known Issues
+
+### ✅ Working Systems
+- WiFi connectivity and web interface
+- Servo communication protocol  
+- Safety systems and emergency stop
+- Individual servo testing
+- Calibration offset system
+- Tripod group identification and basic lifting
+
+### 🔧 Resolved Issues  
+- **Servo 32 stability**: Added special handling for RL COXA servo
+- **Inconsistent Joint Test**: Made individual leg testing stable and repeatable
+- **Missing forward/backward movement**: Tripod test now only focuses on lifting
+- **Left leg inversion**: Properly mapped inverted directions in LEG_LIFT_DIRECTIONS
+
+### ⚠️ Current Challenges
+- **Full tripod locomotion**: Need to implement complete walking cycle with forward progression
+- **Gait synchronization**: Coordinate lift/support phases with forward/backward movements
+- **Real-world testing**: Validate movements produce actual robot locomotion
+
+### 📝 Latest Status
+- **Config updated**: User reverted LEG_LIFT_DIRECTIONS back to COXA=0 (no forward/backward in tripod test)
+- **PWM ranges**: Currently using safe 1000-2000μs range  
+- **Servo 32 issue**: Still requires special handling for RL COXA
+- **Joint Test**: Now working stably with individual leg testing
+- **Tripod Test**: Successfully lifts correct leg groups with proper directions
+
+## Tripod Gait Theory
+
+### Concept
+- **Group 1**: FR, ML, RR (alternating triangle)
+- **Group 2**: FL, MR, RL (alternating triangle)
+- **Phase 1**: Group 1 lifts and moves forward, Group 2 stays on ground pushing back
+- **Phase 2**: Group 2 lifts and moves forward, Group 1 stays on ground pushing back
+
+### Implementation Goals
+- Lift legs using FEMUR (up) and TIBIA (bend) movements
+- **Future**: Move legs forward/backward using COXA (rotation) movements  
+- Maintain 3-point ground contact for stability
+- **Future**: Create net forward progression through coordinated push/pull
+
+### Current Implementation Status
+- **TRIPOD_TEST**: Only lifts legs in groups (no forward/backward movement)
+- **Joint Test**: Stable individual leg movement testing
+- **Servo Directions**: Properly mapped with left leg inversion
+
+## Debug Strategy
+
+### Systematic Testing Order
+1. **Basic connectivity**: WiFi + WebSocket communication
+2. **Servo verification**: DIAGNOSTIC command for all channels
+3. **Mechanical calibration**: JOINT_TEST for movement directions  
+4. **Group coordination**: TRIPOD_TEST for simultaneous lifting
+5. **Complete gait**: Implement full walking cycle
+6. **Performance tuning**: Speed, stability, efficiency optimization
+
+### Key Questions for Debugging
+- Do servos respond to commands consistently?
+- Are movement directions correct for each leg's physical orientation?
+- Do tripod groups lift/lower synchronously?
+- Does the robot actually move forward during gait cycles?
+- Are there mechanical binding or interference issues?
+
+### Next Steps for Full Locomotion
+1. **Add COXA movements**: Change LEG_LIFT_DIRECTIONS COXA from 0 to +1/-1
+2. **Implement forward/backward phases**: 
+   - Air group moves forward (+COXA)
+   - Ground group pushes back (-COXA)
+3. **Test real movement**: Verify robot progresses forward
+4. **Add movement commands**: LEFT, RIGHT, BACKWARD variations
+5. **Optimize gait parameters**: Speed, step size, lift height
+
+## Expected Behavior Patterns
+
+### Normal Operation  
+- Startup: All legs in neutral position
+- Joint Test: Each leg moves predictably in both directions
+- Tripod Test: Group 1 and Group 2 alternate lifting cleanly
+- Forward movement: Robot progresses forward with stable gait
+
+### Problem Indicators
+- Servos not responding or inconsistent movement
+- Legs moving in wrong directions (check LEG_LIFT_DIRECTIONS)
+- Unstable or falling during gait (check tripod group coordination)
+- No forward progression (need COXA forward/backward movements)
+- Controller beeping (servo overload - reduce movement ranges)
+
+---
+*Use this context to understand the hexapod project and provide targeted debugging assistance for tripod gait development.*

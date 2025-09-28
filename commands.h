@@ -5,6 +5,26 @@
 
 class Commands {
 public:
+  // Инициализация и очистка буфера контроллера
+  static void init_controller() {
+    Logger::log(Logger::INFO, "Initializing 32-channel servo controller");
+    
+    // Отправляем команды сброса и очистки буфера
+    Serial1.print("#255P0T0\r\n");    // Стоп всех каналов
+    delay(100);
+    Serial1.print("#0P1500T0\r\n");  // Сброс в нейтральное положение (канал 0 = все каналы)
+    delay(100);
+    
+    // Очищаем буферы Serial1
+    while (Serial1.available()) {
+      Serial1.read();
+    }
+    
+    // Дополнительная пауза для стабилизации контроллера
+    delay(500);
+    Logger::log(Logger::INFO, "Controller initialized and buffers cleared");
+  }
+
   static void send_servo_direct(int servo, int pulse) {
     pulse = constrain(pulse, MIN_PULSE, MAX_PULSE);
 
@@ -57,7 +77,7 @@ public:
     const char* joint_names[] = {"COXA", "FEMUR", "TIBIA"};
     
     // Безопасные пределы движения для тестирования
-    const int SAFE_RANGE = 150; // Уменьшено с 300 до 150
+    const int SAFE_RANGE = 200; // Увеличено с 150 до 200 для лучшей видимости
     
     // Тест каждого сустава ноги
     for (int joint = 0; joint < NUM_JOINTS; joint++) {
@@ -90,7 +110,7 @@ public:
   static void diagnostic_sequence() {
     Logger::log(Logger::INFO, "Starting SAFE diagnostic sequence");
     
-    const int SAFE_DIAG_RANGE = 100; // Безопасный диапазон для диагностики
+    const int SAFE_DIAG_RANGE = 150; // Увеличено с 100 до 150 для лучшей видимости
     
     // 1. Проверка всех сервоприводов по очереди с безопасными пределами
     for (int i = 1; i <= 32; i++) {

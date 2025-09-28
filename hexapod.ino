@@ -39,6 +39,10 @@ void handle_command(const char* cmd);
 void setup() {
   Serial.begin(115200);
   Serial1.begin(9600, SERIAL_8N1, 4, 5);
+  
+  // Инициализируем контроллер и очищаем буферы
+  delay(1000); // Пауза для стабилизации соединения с контроллером
+  Commands::init_controller();
 
   WiFi.begin(SSID, PASSWORD);
   while (WiFi.status() != WL_CONNECTED) {
@@ -56,7 +60,10 @@ void setup() {
   webSocket.onEvent(webSocketEvent);
 
   SafetySystem::init();
-  hexapod.reset_pose(active_leg);
+  
+  // Дополнительная пауза перед установкой начальных позиций
+  delay(1000);
+  Commands::reset_all_servos(); // Используем надежную функцию сброса вместо hexapod.reset_pose
   Logger::log(Logger::INFO, "Ready. All servos in neutral position");
 }
 
@@ -91,15 +98,39 @@ void handle_gait_cycle() {
 
       const int (*traj)[3] = is_transfer ? TRANSFER_TRAJ : SUPPORT_TRAJ;
 
-      // Применяем импульсы с учетом калибровочных смещений
-      int coxa = traj[current_step][0] + LEG_OFFSETS[leg][COXA];
-      int femur = traj[current_step][1] + LEG_OFFSETS[leg][FEMUR];
-      int tibia = traj[current_step][2] + LEG_OFFSETS[leg][TIBIA];
+      // ИСПРАВЛЕНИЕ: Учитываем инверсию левых ног с помощью LEG_LIFT_DIRECTIONS
+      bool is_left_leg = (leg == LEG_REAR_LEFT || leg == LEG_MIDDLE_LEFT || leg == LEG_FRONT_LEFT);
+      
+      int coxa, femur, tibia;
+      
+      if (is_left_leg) {
+        // Для левых ног применяем инверсию согласно LEG_LIFT_DIRECTIONS
+        // LEG_LIFT_DIRECTIONS для левых ног: {0, -1, +1}
+        coxa = NEUTRAL + LEG_OFFSETS[leg][COXA];  // COXA остается нейтральной
+        
+        // Инвертируем FEMUR и TIBIA для левых ног
+        int base_femur_offset = traj[current_step][1] - NEUTRAL;
+        int base_tibia_offset = traj[current_step][2] - NEUTRAL;
+        
+        femur = NEUTRAL + LEG_OFFSETS[leg][FEMUR] + (base_femur_offset * LEG_LIFT_DIRECTIONS[leg][FEMUR]);
+        tibia = NEUTRAL + LEG_OFFSETS[leg][TIBIA] + (base_tibia_offset * LEG_LIFT_DIRECTIONS[leg][TIBIA]);
+      } else {
+        // Для правых ног используем траекторию как есть
+        coxa = traj[current_step][0] + LEG_OFFSETS[leg][COXA];
+        femur = traj[current_step][1] + LEG_OFFSETS[leg][FEMUR];
+        tibia = traj[current_step][2] + LEG_OFFSETS[leg][TIBIA];
+      }
+      
+      // Применяем безопасные ограничения
+      coxa = constrain(coxa, MIN_PULSE, MAX_PULSE);
+      femur = constrain(femur, MIN_PULSE, MAX_PULSE);
+      tibia = constrain(tibia, MIN_PULSE, MAX_PULSE);
 
       SafetySystem::set_servo(LEG_SERVO_MAP[leg][COXA], coxa);
       SafetySystem::set_servo(LEG_SERVO_MAP[leg][FEMUR], femur);
       SafetySystem::set_servo(LEG_SERVO_MAP[leg][TIBIA], tibia);
-    }
+      
+          }
   }
 }
 
@@ -136,6 +167,8 @@ void handle_command(const char* cmd) {
     }
   } else if (strcmp(cmd, "TRIPOD_TEST") == 0) {
     test_tripod_gait();
+  } else if (strcmp(cmd, "FIXED_TRIPOD_TEST") == 0) {
+    test_fixed_tripod_gait();
   } else if (strcmp(cmd, "TRIPOD_INVERT") == 0) {
     test_tripod_with_inverted_left_legs();
   } else if (strcmp(cmd, "JOINT_TEST") == 0) {
@@ -223,7 +256,7 @@ void test_joint_directions() {
   
   const char* leg_names[] = {"FR", "MR", "RR", "RL", "ML", "FL"};
   const char* joint_names[] = {"COXA", "FEMUR", "TIBIA"};
-  const int TEST_OFFSET = 60; // Безопасное смещение с новыми пределами PWM 1000-2000
+  const int TEST_OFFSET = 150; // Увеличено с 60 до 150 для лучшей видимости движений
   
   // ЭКСТРЕМАЛЬНАЯ стабилизация: полная остановка и сброс
   Logger::log(Logger::INFO, "=== ULTRA-STABILIZATION SEQUENCE ===");
@@ -336,8 +369,8 @@ void test_tripod_with_inverted_left_legs() {
   is_moving = false;
   
   const char* leg_names[] = {"FR", "MR", "RR", "RL", "ML", "FL"};
-  const int LIFT_AMOUNT = 40;
-  const int FORWARD_AMOUNT = 30;
+  const int LIFT_AMOUNT = 120;  // Увеличено с 40 до 120 для лучшей видимости
+  const int FORWARD_AMOUNT = 80;  // Увеличено с 30 до 80 для лучшей видимости
   
   Logger::log(Logger::INFO, "Testing with INVERTED logic for left legs");
   
@@ -434,8 +467,8 @@ void test_tripod_gait() {
   is_moving = false;
   
   const char* leg_names[] = {"FR", "MR", "RR", "RL", "ML", "FL"};
-  const int LIFT_AMOUNT = 40;
-  const int FORWARD_AMOUNT = 30;
+  const int LIFT_AMOUNT = 120;  // Увеличено с 40 до 120 для лучшей видимости
+  const int FORWARD_AMOUNT = 80;  // Увеличено с 30 до 80 для лучшей видимости
   
   Logger::log(Logger::INFO, "Using lift: %d, forward: %d", LIFT_AMOUNT, FORWARD_AMOUNT);
   
@@ -454,10 +487,10 @@ void test_tripod_gait() {
     int fr_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_RIGHT][FEMUR] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // +LIFT для подъема
     int fr_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_RIGHT][TIBIA] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // -LIFT для сгибания
     
-    // ML (Middle Left) - поднимаем (ВНИМАНИЕ: может нуждаться в инверсии)
+    // ML (Middle Left) - поднимаем (ИНВЕРТИРОВАННАЯ логика согласно LEG_LIFT_DIRECTIONS)
     int ml_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_LEFT][COXA] + FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE);
-    int ml_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_LEFT][FEMUR] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // Попробуем +LIFT
-    int ml_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_LEFT][TIBIA] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // Попробуем -LIFT
+    int ml_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_LEFT][FEMUR] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ: -LIFT для подъема
+    int ml_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_LEFT][TIBIA] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ: +LIFT для сгибания
     
     // RR (Rear Right) - поднимаем
     int rr_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_RIGHT][COXA] + FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE);
@@ -502,20 +535,20 @@ void test_tripod_gait() {
     // === ФАЗА 2: FL, MR, RL поднимаются ===
     Logger::log(Logger::INFO, "PHASE 2: Lifting FL, MR, RL");
     
-    // FL (Front Left) - поднимаем (ВНИМАНИЕ: может нуждаться в инверсии)
+    // FL (Front Left) - поднимаем (ИНВЕРТИРОВАННАЯ логика согласно LEG_LIFT_DIRECTIONS)
     int fl_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][COXA] + FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE);
-    int fl_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][FEMUR] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // Попробуем +LIFT
-    int fl_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][TIBIA] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // Попробуем -LIFT
+    int fl_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][FEMUR] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ: -LIFT для подъема
+    int fl_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][TIBIA] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ: +LIFT для сгибания
     
     // MR (Middle Right) - поднимаем
     int mr_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_RIGHT][COXA] + FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE);
     int mr_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_RIGHT][FEMUR] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // +LIFT для подъема
     int mr_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_RIGHT][TIBIA] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // -LIFT для сгибания
     
-    // RL (Rear Left) - поднимаем (ВНИМАНИЕ: может нуждаться в инверсии)
+    // RL (Rear Left) - поднимаем (ИНВЕРТИРОВАННАЯ логика согласно LEG_LIFT_DIRECTIONS)
     int rl_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][COXA] + FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE);
-    int rl_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][FEMUR] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // Попробуем +LIFT
-    int rl_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][TIBIA] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // Попробуем -LIFT
+    int rl_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][FEMUR] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ: -LIFT для подъема
+    int rl_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][TIBIA] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ: +LIFT для сгибания
     
     Logger::log(Logger::INFO, "FL: COXA=%d, FEMUR=%d, TIBIA=%d", fl_coxa, fl_femur, fl_tibia);
     Logger::log(Logger::INFO, "MR: COXA=%d, FEMUR=%d, TIBIA=%d", mr_coxa, mr_femur, mr_tibia);
@@ -554,6 +587,82 @@ void test_tripod_gait() {
   }
   
   Logger::log(Logger::INFO, "Explicit tripod test completed");
+  Commands::reset_all_servos();
+}
+
+void test_fixed_tripod_gait() {
+  Logger::log(Logger::INFO, "=== TESTING FIXED TRIPOD GAIT WITH INVERTED LEFT LEGS ===");
+  is_moving = false;
+  
+  const char* leg_names[] = {"FR", "MR", "RR", "RL", "ML", "FL"};
+  
+  // Сброс в нейтральное положение
+  Commands::reset_all_servos();
+  delay(2000);
+  
+  Logger::log(Logger::INFO, "Starting 2 cycles of corrected tripod gait");
+  
+  for (int cycle = 0; cycle < 2; cycle++) {
+    Logger::log(Logger::INFO, "=== CYCLE %d ===", cycle + 1);
+    
+    // Имитируем 4 шага полного цикла походки
+    for (int step = 0; step < 4; step++) {
+      Logger::log(Logger::INFO, "--- Step %d ---", step);
+      
+      // Определяем фазу (смена фазы после каждого полного цикла из 4 шагов)
+      GaitPhase phase = (cycle % 2 == 0) ? GaitPhase::PHASE1 : GaitPhase::PHASE2;
+      
+      for (int leg = 0; leg < TOTAL_LEGS; leg++) {
+        // Определяем какая нога в фазе переноса
+        bool is_transfer = (phase == GaitPhase::PHASE1 &&
+            (leg == LEG_FRONT_RIGHT || leg == LEG_REAR_RIGHT || leg == LEG_MIDDLE_LEFT)) ||
+            (phase == GaitPhase::PHASE2 &&
+            (leg == LEG_MIDDLE_RIGHT || leg == LEG_REAR_LEFT || leg == LEG_FRONT_LEFT));
+
+        const int (*traj)[3] = is_transfer ? TRANSFER_TRAJ : SUPPORT_TRAJ;
+        bool is_left_leg = (leg == LEG_REAR_LEFT || leg == LEG_MIDDLE_LEFT || leg == LEG_FRONT_LEFT);
+        
+        int coxa, femur, tibia;
+        
+        if (is_left_leg) {
+          // Применяем инверсию для левых ног
+          coxa = NEUTRAL + LEG_OFFSETS[leg][COXA];  // COXA нейтральная
+          
+          // Инвертируем FEMUR и TIBIA согласно LEG_LIFT_DIRECTIONS
+          int base_femur_offset = traj[step][1] - NEUTRAL;
+          int base_tibia_offset = traj[step][2] - NEUTRAL;
+          
+          femur = NEUTRAL + LEG_OFFSETS[leg][FEMUR] + (base_femur_offset * LEG_LIFT_DIRECTIONS[leg][FEMUR]);
+          tibia = NEUTRAL + LEG_OFFSETS[leg][TIBIA] + (base_tibia_offset * LEG_LIFT_DIRECTIONS[leg][TIBIA]);
+        } else {
+          // Для правых ног используем траекторию как есть
+          coxa = traj[step][0] + LEG_OFFSETS[leg][COXA];
+          femur = traj[step][1] + LEG_OFFSETS[leg][FEMUR];
+          tibia = traj[step][2] + LEG_OFFSETS[leg][TIBIA];
+        }
+        
+        // Применяем ограничения
+        coxa = constrain(coxa, MIN_PULSE, MAX_PULSE);
+        femur = constrain(femur, MIN_PULSE, MAX_PULSE);
+        tibia = constrain(tibia, MIN_PULSE, MAX_PULSE);
+        
+        // Отправляем команды
+        SafetySystem::set_servo(LEG_SERVO_MAP[leg][COXA], coxa);
+        SafetySystem::set_servo(LEG_SERVO_MAP[leg][FEMUR], femur);
+        SafetySystem::set_servo(LEG_SERVO_MAP[leg][TIBIA], tibia);
+        
+        Logger::log(Logger::INFO, "%s (%s, %s): C=%d, F=%d, T=%d", 
+                   leg_names[leg], is_left_leg ? "LEFT" : "RIGHT", 
+                   is_transfer ? "TRANSFER" : "SUPPORT", coxa, femur, tibia);
+      }
+      
+      Logger::log(Logger::INFO, "Phase %s, Step %d completed. Waiting...", 
+                 (phase == GaitPhase::PHASE1) ? "PHASE1" : "PHASE2", step);
+      delay(1500); // Пауза между шагами для наблюдения
+    }
+  }
+  
+  Logger::log(Logger::INFO, "=== FIXED TRIPOD TEST COMPLETE ===");
   Commands::reset_all_servos();
 }
 

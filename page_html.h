@@ -99,7 +99,7 @@ const char PROGMEM PAGE_HTML[] = R"=====(
             <div class="test-grid" style="margin-top: 10px;">
                 <button class="diagnostic" onclick="send('JOINT_TEST')">Joint Directions</button>
                 <button class="diagnostic" onclick="send('TEST_SERVO32')">Test Servo 32</button>
-                <button></button>
+                <button class="test" onclick="send('FIXED_TRIPOD_TEST')">Fixed Tripod</button>
                 <button></button>
             </div>
             <div style="margin-top: 15px; text-align: center;">
@@ -154,10 +154,11 @@ const char PROGMEM PAGE_HTML[] = R"=====(
         window.send = function(cmd) {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(cmd);
-                status.textContent += '\n> ' + cmd;
                 console.log("Sent command:", cmd);
             } else {
-                status.textContent += '\nError: Not connected';
+                console.log("Error: Not connected to send:", cmd);
+                status.textContent = 'Error: Not connected';
+                status.style.background = '#f8d7da';
             }
         }
 

@@ -1,0 +1,24 @@
+# Arduino IDE временные файлы
+*.ino.hex
+*.ino.eep
+*.ino.elf
+*.ino.map
+*.ino.bin
+*.ino.merged.hex
+
+# Система тестирования (компилированные файлы)
+tests/run_tests
+tests/run_tests.exe
+tests/*.o
+tests/*.obj
+tests/*.exe
+
+# IDE файлы
+.vscode/
+.idea/
+*.code-workspace
+
+# Временные файлы
+*.tmp
+*.bak
+*~
