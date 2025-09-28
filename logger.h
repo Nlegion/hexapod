@@ -3,7 +3,8 @@
 
 class Logger {
 public:
-  enum Level { INFO,
+  enum Level { DEBUG,
+               INFO,
                WARNING,
                ERROR };
 
@@ -28,6 +29,7 @@ public:
 private:
   static const char* level_str(Level l) {
     switch (l) {
+      case DEBUG: return "DEBUG";
       case INFO: return "INFO";
       case WARNING: return "WARN";
       case ERROR: return "ERROR";

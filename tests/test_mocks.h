@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <cstdarg>
 
 // Имитация Arduino типов и констант
 typedef unsigned char uint8_t;
@@ -53,10 +54,14 @@ public:
     }
     
     void print(const char* str) {
+        std::string data(str);
+        sent_commands.push_back(data);
         std::cout << str;
     }
     
     void print(char* str) {
+        std::string data(str);
+        sent_commands.push_back(data);
         std::cout << str;
     }
     
@@ -151,3 +156,19 @@ public:
 };
 
 std::map<int, int> ServoTracker::servo_positions;
+
+// Мок для системы логирования
+class MockLogger {
+public:
+    enum Level { DEBUG, INFO, WARNING, ERROR };
+    
+    static void log(Level level, const char* format, ...) {
+        const char* level_str[] = {"DEBUG", "INFO", "WARNING", "ERROR"};
+        char buffer[512];
+        va_list args;
+        va_start(args, format);
+        vsnprintf(buffer, sizeof(buffer), format, args);
+        va_end(args);
+        std::cout << "[" << level_str[level] << "] " << buffer << std::endl;
+    }
+};

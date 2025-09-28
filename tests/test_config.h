@@ -75,3 +75,8 @@ constexpr int SUPPORT_TRAJ[4][3] = {
   {1480, 1450, 1550}, // Шаг 2: Движение назад + опора
   {1450, 1450, 1550}  // Шаг 3: Максимальное отталкивание назад
 };
+
+// Физические размеры сегментов ног для кинематики
+constexpr float FEMUR_LENGTH = 43.0f;  // Бедро
+constexpr float TIBIA_LENGTH = 73.0f;  // Голень
+constexpr float COXA_LENGTH = 39.0f;   // Тазобедренная часть

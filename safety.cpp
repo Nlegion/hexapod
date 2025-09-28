@@ -19,19 +19,34 @@ void SafetySystem::init() {
 bool SafetySystem::set_servo(int servo, int pulse) {
   const int MAX_DELTA = 200;  // Более плавное движение
   static int last_pulse[32] = { 0 };
+  static bool initialized = false;
+  
+  // Инициализируем last_pulse нейтральными значениями при первом вызове
+  if (!initialized) {
+    for (int i = 0; i < 32; i++) {
+      last_pulse[i] = NEUTRAL;
+    }
+    initialized = true;
+  }
 
-  pulse = constrain(pulse, MIN_PULSE + 100, MAX_PULSE - 100);
-  int delta = pulse - last_pulse[servo];
+  // Проверяем валидность канала сервопривода
+  if (servo < 1 || servo > 32) {
+    Logger::log(Logger::ERROR, "Invalid servo channel: %d", servo);
+    return false;
+  }
+  
+  pulse = constrain(pulse, MIN_PULSE, MAX_PULSE);
+  int delta = pulse - last_pulse[servo - 1];  // last_pulse индексируется с 0
 
   if (abs(delta) > MAX_DELTA) {
-    pulse = last_pulse[servo] + (delta > 0 ? MAX_DELTA : -MAX_DELTA);
+    pulse = last_pulse[servo - 1] + (delta > 0 ? MAX_DELTA : -MAX_DELTA);
     Logger::log(Logger::WARNING,
                 "Servo %d speed limited: %d → %d",
-                servo, last_pulse[servo], pulse);
+                servo, last_pulse[servo - 1], pulse);
   }
 
   Commands::send_servo(servo, pulse);
-  last_pulse[servo] = pulse;
+  last_pulse[servo - 1] = pulse;
   return true;
 }
 

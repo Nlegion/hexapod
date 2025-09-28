@@ -3,6 +3,7 @@
 #include "test_config.h"
 #include "test_safety.h"
 #include "test_commands.h"
+#include "test_kinematics.h"
 
 // Функции трипоидной походки для тестирования
 class GaitTester {
@@ -198,7 +199,9 @@ TEST(commands_initialization) {
     Commands::init_controller();
     
     auto commands = Serial1.get_sent_commands();
-    ASSERT_TRUE(commands.size() >= 2); // Минимум 2 команды инициализации
+    ASSERT_EQ(2, commands.size()); // Точно 2 команды инициализации
+    ASSERT_TRUE(commands[0] == "#255P0T0\r\n"); // Команда остановки
+    ASSERT_TRUE(commands[1] == "#0P1500T0\r\n"); // Команда сброса
 }
 
 TEST(reset_all_servos) {

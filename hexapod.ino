@@ -8,6 +8,11 @@
 #include "commands.h"
 #include "kinematics.h"
 
+// Определение статических переменных ControllerStatus
+bool ControllerStatus::initialized = false;
+unsigned long ControllerStatus::last_command_time = 0;
+int ControllerStatus::command_count = 0;
+
 WebServer server(80);
 WebSocketsServer webSocket(81);
 LegController hexapod;
@@ -32,6 +37,10 @@ GaitState gait_state = GaitState::IDLE;
 LegID active_leg = LEG_FRONT_RIGHT;
 float progress = 0.0f;
 
+// Переменные для неблокирующей инициализации сервоприводов
+bool servos_reset = false;
+unsigned long setup_complete_time = 0;
+
 void init_webserver();
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length);
 void handle_command(const char* cmd);
@@ -44,14 +53,37 @@ void setup() {
   
   // Инициализируем контроллер и очищаем буферы
   delay(1000); // Пауза для стабилизации соединения с контроллером
-  Commands::init_controller();
+  CommandResult init_result = Commands::init_controller();
+  if (init_result != CommandResult::SUCCESS) {
+    Logger::log(Logger::ERROR, "Failed to initialize servo controller. Result: %d", (int)init_result);
+    Logger::log(Logger::ERROR, "System cannot continue without servo controller");
+    // Бесконечный цикл с индикацией ошибки
+    while (true) {
+      delay(1000);
+      Logger::log(Logger::ERROR, "CRITICAL: Servo controller initialization failed");
+    }
+  }
+  Logger::log(Logger::INFO, "Servo controller initialized successfully");
 
   WiFi.begin(SSID, PASSWORD);
+  unsigned long wifi_start = millis();
+  const unsigned long WIFI_TIMEOUT = 15000; // 15 секунд на подключение
+  
   while (WiFi.status() != WL_CONNECTED) {
+    if (millis() - wifi_start > WIFI_TIMEOUT) {
+      Logger::log(Logger::ERROR, "WiFi connection timeout. Starting in AP mode");
+      WiFi.mode(WIFI_AP);
+      WiFi.softAP("Hexapod_Config", "12345678");
+      Logger::log(Logger::INFO, "AP Mode. IP: %s", WiFi.softAPIP().toString().c_str());
+      break;
+    }
     delay(500);
     Logger::log(Logger::INFO, "Connecting to WiFi...");
   }
-  Logger::log(Logger::INFO, "Connected. IP: %s", WiFi.localIP().toString().c_str());
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Logger::log(Logger::INFO, "Connected. IP: %s", WiFi.localIP().toString().c_str());
+  }
 
   server.on("/", []() {
     server.send_P(200, "text/html", PAGE_HTML);
@@ -63,13 +95,33 @@ void setup() {
 
   SafetySystem::init();
   
-  // Дополнительная пауза перед установкой начальных позиций
-  delay(1000);
-  Commands::reset_all_servos(); // Используем надежную функцию сброса вместо hexapod.reset_pose
-  Logger::log(Logger::INFO, "Ready. All servos in neutral position");
+  // Инициализация системы кинематики
+  hexapod.init();
+  
+  // Неблокирующая инициализация - сервоприводы будут сброшены в первом цикле loop()
+  setup_complete_time = millis();
+  
+  Logger::log(Logger::INFO, "Setup complete. Servos will be reset in main loop");
 }
 
 void loop() {
+  // Неблокирующая инициализация сервоприводов после setup()
+  if (!servos_reset && millis() - setup_complete_time > 1000) {
+    Commands::reset_all_servos();
+    servos_reset = true;
+    Logger::log(Logger::INFO, "Ready. All servos in neutral position");
+  }
+  
+  // Мониторинг WiFi соединения
+  static unsigned long last_wifi_check = 0;
+  if (millis() - last_wifi_check > 5000) { // Проверяем каждые 5 секунд
+    last_wifi_check = millis();
+    if (WiFi.status() != WL_CONNECTED && WiFi.getMode() != WIFI_AP) {
+      Logger::log(Logger::WARNING, "WiFi disconnected. Attempting reconnection...");
+      WiFi.reconnect();
+    }
+  }
+  
   webSocket.loop();
   server.handleClient();
   SafetySystem::update_load_monitor();
@@ -172,7 +224,14 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
 
     case WStype_TEXT:
       {
-        char cmd[length+1];
+        // Защита от слишком длинных команд
+        const size_t MAX_COMMAND_LENGTH = 256;
+        if (length > MAX_COMMAND_LENGTH) {
+          Logger::log(Logger::WARNING, "Command too long (%d bytes), ignoring", length);
+          break;
+        }
+        
+        char cmd[MAX_COMMAND_LENGTH + 1];
         memcpy(cmd, payload, length);
         cmd[length] = '\0';
         handle_command(cmd);
