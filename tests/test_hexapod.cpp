@@ -67,16 +67,7 @@ TEST(leg_offsets_reasonable) {
     for (int leg = 0; leg < TOTAL_LEGS; leg++) {
         for (int joint = 0; joint < NUM_JOINTS; joint++) {
             int offset = LEG_OFFSETS[leg][joint];
-            
-            // Для левых ног FEMUR разрешаем большие offsets для компенсации зеркальности
-            bool is_left_leg = (leg == LEG_REAR_LEFT || leg == LEG_MIDDLE_LEFT || leg == LEG_FRONT_LEFT);
-            bool is_femur = (joint == FEMUR);
-            
-            if (is_left_leg && is_femur) {
-                ASSERT_IN_RANGE(offset, -200, 200); // Левые ноги FEMUR: расширенный диапазон
-            } else {
-                ASSERT_IN_RANGE(offset, -100, 100); // Обычный диапазон для остальных
-            }
+            ASSERT_IN_RANGE(offset, -100, 100); // Все offsets в разумных пределах
         }
     }
 }
@@ -93,16 +84,16 @@ TEST(lift_directions_valid) {
         ASSERT_TRUE(femur_dir == 1 || femur_dir == -1);
         ASSERT_TRUE(tibia_dir == 1 || tibia_dir == -1);
         
-        // Левые ноги должны иметь полную инверсию всех суставов (физически зеркальные)
+        // Левые ноги: только COXA инвертирован, FEMUR и TIBIA как у правых (зеркальные сервоприводы)
         bool is_left = (leg == LEG_REAR_LEFT || leg == LEG_MIDDLE_LEFT || leg == LEG_FRONT_LEFT);
         if (is_left) {
-            ASSERT_EQ(-1, coxa_dir);   // Левые ноги: -1 для всех суставов
-            ASSERT_EQ(-1, femur_dir);  
-            ASSERT_EQ(1, tibia_dir);   // Кроме TIBIA: +1 
+            ASSERT_EQ(-1, coxa_dir);   // Левые ноги: COXA инвертирован для поворота
+            ASSERT_EQ(1, femur_dir);   // FEMUR как у правых - зеркальные сервоприводы требуют те же команды
+            ASSERT_EQ(-1, tibia_dir);  // TIBIA как у правых - зеркальные сервоприводы требуют те же команды
         } else {
-            ASSERT_EQ(1, coxa_dir);    // Правые ноги: +1 для COXA и FEMUR
+            ASSERT_EQ(1, coxa_dir);    // Правые ноги: стандартные направления
             ASSERT_EQ(1, femur_dir);   
-            ASSERT_EQ(-1, tibia_dir);  // -1 для TIBIA
+            ASSERT_EQ(-1, tibia_dir);  
         }
     }
 }
@@ -192,12 +183,12 @@ TEST(left_leg_inversion) {
     
     std::cout << "FL FEMUR: " << fl_femur << ", RL FEMUR: " << rl_femur << ", MR FEMUR: " << mr_femur << std::endl;
     
-    // ИНВЕРСИЯ: левые ноги получают противоположные команды для того же физического результата
-    // Левые ноги: FEMUR должен быть меньше нейтрали (инвертированный подъем)
-    ASSERT_TRUE(fl_femur < NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][FEMUR]);
-    ASSERT_TRUE(rl_femur < NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][FEMUR]);
+    // НОВАЯ ЛОГИКА: зеркальные сервоприводы получают те же команды для того же физического результата
+    // ВСЕ ноги: FEMUR должен быть больше нейтрали для подъема (одинаковые команды)
+    ASSERT_TRUE(fl_femur > NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][FEMUR]);   // Левые как правые!
+    ASSERT_TRUE(rl_femur > NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][FEMUR]);   // Левые как правые!
     
-    // Правая нога: FEMUR должен быть больше нейтрали (нормальный подъем)
+    // Правая нога: FEMUR больше нейтрали (стандартный подъем)
     ASSERT_TRUE(mr_femur > NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_RIGHT][FEMUR]);
 }
 
@@ -286,14 +277,14 @@ TEST(simulate_tripod_test) {
         int fr_femur = constrain(fr_femur_base + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); 
         int fr_tibia = constrain(fr_tibia_base - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); 
         
-        // ML (Middle Left) - поднимаем (ПОЛНАЯ ИНВЕРСИЯ всех суставов - левая нога зеркальная!)
+        // ML (Middle Left) - поднимаем (зеркальные сервоприводы - те же команды, что у правых!)
         int ml_coxa_base = NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_LEFT][COXA];
         int ml_femur_base = NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_LEFT][FEMUR];
         int ml_tibia_base = NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_LEFT][TIBIA];
         
-        int ml_coxa = constrain(ml_coxa_base - FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE); 
-        int ml_femur = constrain(ml_femur_base - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); 
-        int ml_tibia = constrain(ml_tibia_base + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); 
+        int ml_coxa = constrain(ml_coxa_base - FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE); // Только COXA инвертирован
+        int ml_femur = constrain(ml_femur_base + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // FEMUR как у правых!
+        int ml_tibia = constrain(ml_tibia_base - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // TIBIA как у правых! 
         
         // RR (Rear Right) - поднимаем
         int rr_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_RIGHT][COXA] + FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE);
@@ -317,20 +308,20 @@ TEST(simulate_tripod_test) {
         std::cout << "\nPHASE 2: Lifting FL, MR, RL" << std::endl;
         std::cout << std::string(30, '-') << std::endl;
         
-        // FL (Front Left) - поднимаем (ПОЛНАЯ ИНВЕРСИЯ всех суставов - левая нога зеркальная!)
-        int fl_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][COXA] - FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE); 
-        int fl_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][FEMUR] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); 
-        int fl_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][TIBIA] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); 
+        // FL (Front Left) - поднимаем (зеркальные сервоприводы - те же команды, что у правых!)
+        int fl_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][COXA] - FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE); // Только COXA инвертирован
+        int fl_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][FEMUR] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // FEMUR как у правых!
+        int fl_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][TIBIA] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // TIBIA как у правых!
         
         // MR (Middle Right) - поднимаем
         int mr_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_RIGHT][COXA] + FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE);
         int mr_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_RIGHT][FEMUR] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); 
         int mr_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_RIGHT][TIBIA] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); 
         
-        // RL (Rear Left) - поднимаем (ПОЛНАЯ ИНВЕРСИЯ всех суставов - левая нога зеркальная!)
-        int rl_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][COXA] - FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE); 
-        int rl_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][FEMUR] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); 
-        int rl_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][TIBIA] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); 
+        // RL (Rear Left) - поднимаем (зеркальные сервоприводы - те же команды, что у правых!)
+        int rl_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][COXA] - FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE); // Только COXA инвертирован
+        int rl_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][FEMUR] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // FEMUR как у правых!
+        int rl_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][TIBIA] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // TIBIA как у правых! 
         
         std::cout << "FL (Front Left):  COXA=" << fl_coxa << ", FEMUR=" << fl_femur << ", TIBIA=" << fl_tibia << " [LIFTING-INVERTED]" << std::endl;
         std::cout << "MR (Middle Right): COXA=" << mr_coxa << ", FEMUR=" << mr_femur << ", TIBIA=" << mr_tibia << " [LIFTING]" << std::endl;
@@ -354,16 +345,16 @@ TEST(simulate_tripod_test) {
     std::cout << std::string(50, '=') << std::endl;
     
     int ml_neutral_femur = NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_LEFT][FEMUR];
-    int ml_lifting_femur = ml_neutral_femur - LIFT_AMOUNT;
+    int ml_lifting_femur = ml_neutral_femur + LIFT_AMOUNT;  // НОВАЯ ЛОГИКА: как у правых ног!
     
     std::cout << "ML FEMUR нейтраль: " << ml_neutral_femur << std::endl;
-    std::cout << "ML FEMUR подъем:   " << ml_lifting_femur << " (разница: " << (ml_lifting_femur - ml_neutral_femur) << ")" << std::endl;
+    std::cout << "ML FEMUR подъем:   " << ml_lifting_femur << " (разница: +" << (ml_lifting_femur - ml_neutral_femur) << ")" << std::endl;
     
-    if (ml_lifting_femur < 1400) {
-        std::cout << "⚠️  ПРОБЛЕМА: ML FEMUR=" << ml_lifting_femur << " слишком низко для подъема!" << std::endl;
-        std::cout << "💡 РЕШЕНИЕ: Увеличить LEG_OFFSETS[LEG_MIDDLE_LEFT][FEMUR] или изменить направление" << std::endl;
+    if (ml_lifting_femur > 1600) {
+        std::cout << "✅ УСПЕХ: ML FEMUR=" << ml_lifting_femur << " поднимается правильно!" << std::endl;
+        std::cout << "🕷️  ЗЕРКАЛЬНЫЕ СЕРВОПРИВОДЫ: Те же команды, то же физическое движение!" << std::endl;
     } else {
-        std::cout << "✅ ML FEMUR в нормальном диапазоне" << std::endl;
+        std::cout << "⚠️  ПРОБЛЕМА: ML FEMUR=" << ml_lifting_femur << " все еще недостаточно высоко!" << std::endl;
     }
     
     std::cout << "\n" << std::string(60, '=') << std::endl;

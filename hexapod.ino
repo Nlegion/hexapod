@@ -100,33 +100,16 @@ void handle_gait_cycle() {
 
       const int (*traj)[3] = is_transfer ? TRANSFER_TRAJ : SUPPORT_TRAJ;
 
-      // ИСПРАВЛЕНИЕ: Учитываем инверсию левых ног с помощью LEG_LIFT_DIRECTIONS
-      bool is_left_leg = (leg == LEG_REAR_LEFT || leg == LEG_MIDDLE_LEFT || leg == LEG_FRONT_LEFT);
-      
-      int coxa, femur, tibia;
-      
-      if (is_left_leg) {
-        // Для левых ног применяем ПОЛНУЮ инверсию согласно LEG_LIFT_DIRECTIONS
-        // LEG_LIFT_DIRECTIONS для левых ног: {-1, -1, +1} - ВСЕ СУСТАВЫ ИНВЕРТИРОВАНЫ
-        
-        // Инвертируем ВСЕ суставы для левых ног (включая COXA)
-        int base_coxa_offset = traj[current_step][0] - NEUTRAL;
-        int base_femur_offset = traj[current_step][1] - NEUTRAL;
-        int base_tibia_offset = traj[current_step][2] - NEUTRAL;
-        
-        coxa = NEUTRAL + LEG_OFFSETS[leg][COXA] + (base_coxa_offset * LEG_LIFT_DIRECTIONS[leg][COXA]);
-        femur = NEUTRAL + LEG_OFFSETS[leg][FEMUR] + (base_femur_offset * LEG_LIFT_DIRECTIONS[leg][FEMUR]);
-        tibia = NEUTRAL + LEG_OFFSETS[leg][TIBIA] + (base_tibia_offset * LEG_LIFT_DIRECTIONS[leg][TIBIA]);
-      } else {
-        // Для правых ног применяем направления как есть
-        int base_coxa_offset = traj[current_step][0] - NEUTRAL;
-        int base_femur_offset = traj[current_step][1] - NEUTRAL;
-        int base_tibia_offset = traj[current_step][2] - NEUTRAL;
-        
-        coxa = NEUTRAL + LEG_OFFSETS[leg][COXA] + (base_coxa_offset * LEG_LIFT_DIRECTIONS[leg][COXA]);
-        femur = NEUTRAL + LEG_OFFSETS[leg][FEMUR] + (base_femur_offset * LEG_LIFT_DIRECTIONS[leg][FEMUR]);
-        tibia = NEUTRAL + LEG_OFFSETS[leg][TIBIA] + (base_tibia_offset * LEG_LIFT_DIRECTIONS[leg][TIBIA]);
-      }
+    // НОВАЯ ЛОГИКА: Зеркальные сервоприводы получают те же команды для того же физического движения
+    // Применяем LEG_LIFT_DIRECTIONS для всех ног единообразно
+    
+    int base_coxa_offset = traj[current_step][0] - NEUTRAL;
+    int base_femur_offset = traj[current_step][1] - NEUTRAL;
+    int base_tibia_offset = traj[current_step][2] - NEUTRAL;
+    
+    int coxa = NEUTRAL + LEG_OFFSETS[leg][COXA] + (base_coxa_offset * LEG_LIFT_DIRECTIONS[leg][COXA]);
+    int femur = NEUTRAL + LEG_OFFSETS[leg][FEMUR] + (base_femur_offset * LEG_LIFT_DIRECTIONS[leg][FEMUR]);
+    int tibia = NEUTRAL + LEG_OFFSETS[leg][TIBIA] + (base_tibia_offset * LEG_LIFT_DIRECTIONS[leg][TIBIA]);
       
       // Применяем безопасные ограничения
       coxa = constrain(coxa, MIN_PULSE, MAX_PULSE);
@@ -376,17 +359,17 @@ void test_tripod_gait() {
     Logger::log(Logger::INFO, "FR Final positions: COXA=%d (%d+80), FEMUR=%d (%d+120), TIBIA=%d (%d-120)", 
                fr_coxa, fr_coxa_base, fr_femur, fr_femur_base, fr_tibia, fr_tibia_base);
     
-    // ML (Middle Left) - поднимаем (ПОЛНАЯ ИНВЕРСИЯ всех суставов - левая нога зеркальная!)
+    // ML (Middle Left) - поднимаем (зеркальный сервопривод - те же команды что у правых!)
     Logger::log(Logger::INFO, "=== ML LIFTING CALCULATION BREAKDOWN ===");
     int ml_coxa_base = NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_LEFT][COXA];
     int ml_femur_base = NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_LEFT][FEMUR];
     int ml_tibia_base = NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_LEFT][TIBIA];
     Logger::log(Logger::INFO, "ML Base positions: COXA=%d, FEMUR=%d, TIBIA=%d", ml_coxa_base, ml_femur_base, ml_tibia_base);
     
-    int ml_coxa = constrain(ml_coxa_base - FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ: -FORWARD для зеркального движения
-    int ml_femur = constrain(ml_femur_base - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ: -LIFT для подъема зеркальной ноги
-    int ml_tibia = constrain(ml_tibia_base + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ: +LIFT для сгибания зеркальной ноги
-    Logger::log(Logger::INFO, "ML Final positions: COXA=%d (%d-80), FEMUR=%d (%d-120), TIBIA=%d (%d+120)", 
+    int ml_coxa = constrain(ml_coxa_base - FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE); // ТОЛЬКО COXA инвертирован для поворота
+    int ml_femur = constrain(ml_femur_base + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // FEMUR как у правых - зеркальный сервопривод!
+    int ml_tibia = constrain(ml_tibia_base - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // TIBIA как у правых - зеркальный сервопривод!
+    Logger::log(Logger::INFO, "ML Final positions: COXA=%d (%d-80), FEMUR=%d (%d+120), TIBIA=%d (%d-120)", 
                ml_coxa, ml_coxa_base, ml_femur, ml_femur_base, ml_tibia, ml_tibia_base);
     
     // RR (Rear Right) - поднимаем
@@ -449,20 +432,20 @@ void test_tripod_gait() {
     sendPhaseToWeb("PHASE 2: Lifting FL, MR, RL");
     Logger::log(Logger::INFO, "PHASE 2: Lifting FL, MR, RL");
     
-    // FL (Front Left) - поднимаем (ПОЛНАЯ ИНВЕРСИЯ всех суставов - левая нога зеркальная!)
-    int fl_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][COXA] - FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ: -FORWARD для зеркального движения
-    int fl_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][FEMUR] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ: -LIFT для подъема зеркальной ноги
-    int fl_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][TIBIA] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ: +LIFT для сгибания зеркальной ноги
+    // FL (Front Left) - поднимаем (зеркальный сервопривод - те же команды что у правых!)
+    int fl_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][COXA] - FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE); // ТОЛЬКО COXA инвертирован для поворота
+    int fl_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][FEMUR] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // FEMUR как у правых - зеркальный сервопривод!
+    int fl_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_FRONT_LEFT][TIBIA] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // TIBIA как у правых - зеркальный сервопривод!
     
     // MR (Middle Right) - поднимаем
     int mr_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_RIGHT][COXA] + FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE);
     int mr_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_RIGHT][FEMUR] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // +LIFT для подъема
     int mr_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_MIDDLE_RIGHT][TIBIA] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // -LIFT для сгибания
     
-    // RL (Rear Left) - поднимаем (ПОЛНАЯ ИНВЕРСИЯ всех суставов - левая нога зеркальная!)
-    int rl_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][COXA] - FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ: -FORWARD для зеркального движения
-    int rl_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][FEMUR] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ: -LIFT для подъема зеркальной ноги
-    int rl_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][TIBIA] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // ИНВЕРСИЯ: +LIFT для сгибания зеркальной ноги
+    // RL (Rear Left) - поднимаем (зеркальный сервопривод - те же команды что у правых!)
+    int rl_coxa = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][COXA] - FORWARD_AMOUNT, MIN_PULSE, MAX_PULSE); // ТОЛЬКО COXA инвертирован для поворота
+    int rl_femur = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][FEMUR] + LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // FEMUR как у правых - зеркальный сервопривод!
+    int rl_tibia = constrain(NEUTRAL + LEG_OFFSETS[LEG_REAR_LEFT][TIBIA] - LIFT_AMOUNT, MIN_PULSE, MAX_PULSE); // TIBIA как у правых - зеркальный сервопривод!
     
     Logger::log(Logger::INFO, "=== PHASE 2 LIFTING LEGS COORDINATES ===");
     Logger::log(Logger::INFO, "FL (Front Left):  COXA=%d, FEMUR=%d, TIBIA=%d [LIFTING - INVERTED]", fl_coxa, fl_femur, fl_tibia);
