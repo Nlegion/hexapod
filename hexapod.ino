@@ -53,17 +53,15 @@ void setup() {
   
   // Инициализируем контроллер и очищаем буферы
   delay(1000); // Пауза для стабилизации соединения с контроллером
+  
+
   CommandResult init_result = Commands::init_controller();
   if (init_result != CommandResult::SUCCESS) {
     Logger::log(Logger::ERROR, "Failed to initialize servo controller. Result: %d", (int)init_result);
-    Logger::log(Logger::ERROR, "System cannot continue without servo controller");
-    // Бесконечный цикл с индикацией ошибки
-    while (true) {
-      delay(1000);
-      Logger::log(Logger::ERROR, "CRITICAL: Servo controller initialization failed");
-    }
+    Logger::log(Logger::WARNING, "TEMPORARY: Continuing without servo controller for web interface testing");
+  } else {
+    Logger::log(Logger::INFO, "Servo controller initialized successfully");
   }
-  Logger::log(Logger::INFO, "Servo controller initialized successfully");
 
   WiFi.begin(SSID, PASSWORD);
   unsigned long wifi_start = millis();

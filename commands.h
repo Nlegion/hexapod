@@ -77,18 +77,18 @@ public:
       return CommandResult::SERIAL_ERROR;
     }
     
-    // Отправляем команды сброса и очистки буфера
-    CommandResult result1 = send_command_safe("#255P0T0\r\n");    // Стоп всех каналов
-    if (result1 != CommandResult::SUCCESS) {
+    // Отправляем команды напрямую без проверки готовности (для инициализации)
+    size_t bytes1 = Serial1.print("#255P0T0\r\n");    // Стоп всех каналов
+    if (bytes1 == 0) {
       Logger::log(Logger::ERROR, "Failed to send stop command");
-      return result1;
+      return CommandResult::SERIAL_ERROR;
     }
     delay(100);
     
-    CommandResult result2 = send_command_safe("#0P1500T0\r\n");  // Сброс в нейтральное положение
-    if (result2 != CommandResult::SUCCESS) {
+    size_t bytes2 = Serial1.print("#0P1500T0\r\n");  // Сброс в нейтральное положение
+    if (bytes2 == 0) {
       Logger::log(Logger::ERROR, "Failed to send reset command");
-      return result2;
+      return CommandResult::SERIAL_ERROR;
     }
     delay(100);
     

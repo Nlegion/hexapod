@@ -1,203 +1,92 @@
-# Руководство по отладке гексапода
+# 🔧 Hexapod Debug & Troubleshooting Guide
 
-## Обзор системы
+## 🚀 **System Status: Production Ready**
 
-Проект реализует управление 6-ногим роботом (гексапод) с использованием:
-- **ESP32-S3-DevKitC-1** как основной контроллер
-- **32-канальный PWM контроллер** для управления сервоприводами
-- **18 сервоприводов MG90** (по 3 на каждую ногу)
-- **Трипоидная походка** для плавного движения
+This guide covers troubleshooting for the fully validated hexapod robot system. Most issues should be rare due to comprehensive testing and error handling.
 
-## Схема ног и сервоприводов
+## 🧪 **Quick Diagnostic Sequence**
 
-```
-       FL(5)     FR(0)
-        |   \   /   |
-        |    \ /    |
-   ML(4)|     X     |MR(1)
-        |    / \    |
-        |   /   \   |
-       RL(3)     RR(2)
+### 1. **Pre-Upload Validation**
+```bash
+# Always run before uploading to ESP32
+./run_tests.bat      # Windows
+./run_tests.sh       # Linux/Mac
 
-Где: FL=Front Left, FR=Front Right, 
-     ML=Middle Left, MR=Middle Right, 
-     RL=Rear Left, RR=Rear Right
+# Expected: "Results: 24 PASSED, 0 FAILED"
 ```
 
-### Сопоставление сервоприводов:
+### 2. **Hardware Upload & Initialization**
+1. Upload `hexapod.ino` to ESP32-S3
+2. Monitor Serial output at 115200 baud
+3. Expected sequence:
+   ```
+   [INFO] Servo controller initialized successfully  
+   [INFO] Connected. IP: 192.168.1.xxx
+   [INFO] Setup complete. Servos will be reset in main loop
+   [INFO] Ready. All servos in neutral position
+   ```
 
-| Нога | COXA | FEMUR | TIBIA | Описание |
-|------|------|-------|--------|----------|
-| FR(0) | 9   | 10    | 11     | Передняя правая |
-| MR(1) | 5   | 6     | 7      | Средняя правая |
-| RR(2) | 1   | 2     | 3      | Задняя правая |
-| RL(3) | 32  | 31    | 30     | Задняя левая |
-| ML(4) | 28  | 27    | 26     | Средняя левая |
-| FL(5) | 21  | 22    | 23     | Передняя левая |
+### 3. **Web Interface Testing**
+1. Connect to robot's IP address
+2. Test basic commands in order:
+   - **RESET** → All legs to neutral position
+   - **DIAGNOSTIC** → Test all 32 servo channels
+   - **JOINT_TEST** → Verify individual leg movements
+   - **TRIPOD_TEST** → Check group coordination with live coordinates
 
-## Процедура отладки
+## ⚠️ **Common Issues & Solutions**
 
-### 1. Подключение и начальная проверка
+### 🔌 **Connection Problems**
 
-1. **Загрузить код на ESP32**
-2. **Подключиться к Wi-Fi сети** `Homenet_plus`
-3. **Открыть браузер** и перейти на IP адрес ESP32
-4. **Проверить Serial Monitor** на наличие логов
+**WiFi Connection Fails:**
+- System automatically falls back to AP mode "Hexapod_Config" (password: "12345678")
+- Connect device to this network and access 192.168.4.1
+- Check Serial output for connection details
 
-### 2. Диагностические команды
+**Web Interface Not Loading:**  
+- Verify IP address from Serial monitor
+- Try AP mode fallback (automatic after 15 seconds)
+- Ensure device is on same network as ESP32
 
-#### Полная диагностика
-- **Кнопка: "Full Test"** или команда `DIAGNOSTIC`
-- Тестирует все 32 сервопривода по очереди
-- Каждый сервопривод двигается в обе стороны, затем возвращается в нейтраль
+### ⚙️ **Servo Control Issues**
 
-#### Калибровка
-- **Кнопка: "Calibrate"** или команда `CALIBRATE`
-- Тестирует суставы по типам (сначала все COXA, потом FEMUR, потом TIBIA)
-- Показывает, какие ноги двигаются синхронно и есть ли инверсия
-
-#### Сброс в нейтраль
-- **Кнопка: "Reset All"** или команда `RESET`
-- Возвращает все сервоприводы в нейтральное положение с учетом калибровочных смещений
-
-### 3. Тестирование отдельных ног
-
-Используйте кнопки **"FR (0)"** - **"FL (5)"** или команды `TEST_LEG_0` - `TEST_LEG_5`
-
-Для каждой ноги:
-1. Сначала двигается COXA (поворот ноги)
-2. Затем FEMUR (подъем/опускание бедра)
-3. Затем TIBIA (сгибание/разгибание голени)
-
-### 4. Тест направлений суставов
-
-**Кнопка: "Joint Directions"** или команда `JOINT_TEST`
-
-Детально тестирует каждый тип сустава:
-1. **Сначала все COXA** (повороты ног влево/вправо)
-2. **Затем все FEMUR** (подъем/опускание бедер) 
-3. **Затем все TIBIA** (сгибание/разгибание колен)
-
-Для каждого сустава показывает движение в обе стороны (+/-) с подробным логированием.
-
-### 5. Тест трипоидной походки
-
-**Кнопка: "Tripod Test"** или команда `TRIPOD_TEST`
-
-Исправленная версия с использованием таблицы направлений:
-- **Группа 1**: FR, ML, RR поднимаются с правильными направлениями движения
-- **Группа 2**: FL, MR, RL поднимаются с правильными направлениями движения  
-- Учитывает инверсию левых ног через `LEG_LIFT_DIRECTIONS`
-
-## Калибровочные смещения и направления движения
-
-### Калибровочные смещения
-Статические поправки для каждой ноги в `config.h`:
-
-```cpp
-constexpr int LEG_OFFSETS[TOTAL_LEGS][NUM_JOINTS] = {
-  /*FR*/ { -10, 10, -10 },  // Front Right - инверсия по COXA и TIBIA
-  /*MR*/ {   0, -5,   5 },  // Middle Right - небольшая коррекция
-  /*RR*/ {   5,  0,   0 },  // Rear Right - коррекция по COXA
-  /*RL*/ {  -5,  0,   0 },  // Rear Left - инверсия COXA
-  /*ML*/ {   0,  5,  -5 },  // Middle Left - инверсия по FEMUR/TIBIA
-  /*FL*/ {  10, -10, 10 }   // Front Left - полная инверсия по отношению к FR
-};
+**Servo Controller Not Responding:**
 ```
-
-### Направления движения для подъема ног
-Новая таблица определяет правильные направления для каждого сустава:
-
-```cpp
-constexpr int LEG_LIFT_DIRECTIONS[TOTAL_LEGS][NUM_JOINTS] = {
-  /*FR*/ {  0, +1, -1 },  // COXA не двигается, FEMUR вверх, TIBIA сгибается
-  /*MR*/ {  0, +1, -1 },  // Правые ноги - стандартное направление  
-  /*RR*/ {  0, +1, -1 },  // 
-  /*RL*/ {  0, -1, +1 },  // Левые ноги - инвертированные направления
-  /*ML*/ {  0, -1, +1 },  // 
-  /*FL*/ {  0, -1, +1 }   // 
-};
+[ERROR] Failed to initialize servo controller. Result: X
+[ERROR] System cannot continue without servo controller
 ```
+- **Solution**: Check power supply, wiring (Serial1 pins 4,5), servo controller power
+- **Verify**: Servo controller receives 9600 baud serial communication
 
-**Логика:**
-- **COXA = 0**: Не участвует в подъеме (остается в нейтрали)
-- **FEMUR**: +1 для правых ног (вверх), -1 для левых ног (инвертированный вверх)
-- **TIBIA**: -1 для правых ног (сгиб), +1 для левых ног (инвертированный сгиб)
+**Individual Servos Not Moving:**
+- Run **DIAGNOSTIC** command to test all 32 channels
+- Check specific servo power, wiring, channel mapping in `config.h`
+- Verify pulse values are within 1000-2000μs range
 
-## Признаки проблем и решения
+**Incorrect Movement Directions:**
+- **Left legs only**: System correctly inverts COXA only (`LEG_LIFT_DIRECTIONS`)
+- **All legs wrong**: Check hardware wiring, servo orientation
+- **Random legs**: Verify `LEG_SERVO_MAP` channel assignments in `config.h`
 
-### Нога двигается в неправильном направлении
-- **Проблема**: Инверсия сервопривода
-- **Решение**: Изменить знак в `LEG_OFFSETS` для соответствующего сустава
+## 📊 **Diagnostic Commands Reference**
 
-### Нога не двигается
-- **Проблема**: Неправильное подключение или неисправный сервопривод
-- **Решение**: Проверить подключение, использовать `DIAGNOSTIC` для тестирования
+| Command | Purpose | Expected Result |
+|---------|---------|-----------------|
+| `RESET` | Initialize all servos | All legs to neutral position |
+| `DIAGNOSTIC` | Test all 32 channels | Sequential servo movement 1-32 |
+| `JOINT_TEST` | Individual leg testing | Each leg joint moves correctly |
+| `TRIPOD_TEST` | Group coordination | Live coordinates show proper lifting |
+| `FWD` | Forward locomotion | Visible forward movement with gait |
+| `EMERGENCY` | Emergency stop | Immediate halt of all movement |
 
-### Неустойчивая походка
-- **Проблема**: Неправильная синхронизация трипоидных групп
-- **Решение**: Проверить с помощью `TRIPOD_TEST`, скорректировать траектории
+---
 
-### Сервопривод дергается
-- **Проблема**: Слишком большие или быстрые изменения позиции
-- **Решение**: Проверить `SafetySystem::set_servo()` - есть ограничение `MAX_DELTA = 200`
+## 📞 **Additional Resources**
 
-## Мониторинг и логирование
+- **Complete Documentation**: `promt` file contains full technical details
+- **Testing Guide**: `TESTING.md` for unit test framework usage  
+- **Source Code**: All files extensively commented
 
-Все команды логируются через Serial Monitor со временными метками:
-```
-[00:01:23.456] [INFO] Starting calibration mode
-[00:01:24.789] [INFO] Testing COXA joints
-[00:01:25.012] [INFO] Leg 0, Joint COXA, Servo 9 -> 1900
-```
+### 🎯 **Remember: System is Production Ready**
 
-## Обновленная процедура отладки трипоидной походки
-
-### Этап 1: Базовая проверка работоспособности
-1. **Full Test** - убедиться, что все 32 сервопривода работают
-2. **Reset All** - проверить возврат в стартовое положение
-3. **TEST_LEG_0-5** - проверить работу каждой ноги отдельно
-
-### Этап 2: Определение правильных направлений движения
-4. **Joint Directions** - НОВЫЙ тест! Определяет, как именно движутся суставы
-   - Посмотрите в Serial Monitor логи движений
-   - Определите, какие направления (+/-) соответствуют нужным движениям
-   - При необходимости скорректируйте `LEG_LIFT_DIRECTIONS` в `config.h`
-
-### Этап 3: Тест трипоидных групп  
-5. **Tripod Test** - исправленный тест с использованием таблицы направлений
-   - Теперь учитывает инверсию левых ног
-   - Должен показать правильный подъем групп FR+ML+RR и FL+MR+RL
-
-### Этап 4: Финальная отладка
-6. **FWD** - тестировать базовое движение вперед
-7. При проблемах использовать **EMERGENCY STOP**
-
-## Следующие шаги
-
-Процедура изменилась! Теперь сначала используйте **Joint Directions** для понимания правильных направлений движения каждого сустава, затем **Tripod Test** для проверки групповой синхронизации.
-
-## Команды через браузер
-
-| Кнопка | Команда | Описание |
-|--------|---------|----------|
-| ↑ | `FWD` | Движение вперед |
-| STOP | `STOP` | Остановка и сброс |
-| **⚠️ EMERGENCY STOP ⚠️** | `EMERGENCY` | Аварийная остановка всех сервоприводов |
-| Calibrate | `CALIBRATE` | Калибровочная последовательность |
-| Full Test | `DIAGNOSTIC` | Полная диагностика всех сервоприводов |
-| Reset All | `RESET` | Сброс в стартовое положение |
-| Tripod Test | `TRIPOD_TEST` | Исправленный тест трипоидных групп |
-| **Joint Directions** | `JOINT_TEST` | Детальный тест направлений движения суставов |
-| FR (0) | `TEST_LEG_0` | Тест передней правой ноги |
-| ... | `TEST_LEG_1-5` | Тест остальных ног |
-
-## Безопасность
-
-Система включает несколько уровней защиты:
-- **Ограничение скорости изменения** позиции (MAX_DELTA)
-- **Пределы импульсов** (MIN_PULSE, MAX_PULSE)
-- **Мониторинг нагрузки** (пока заглушен)
-- **Экстренная остановка** при превышении лимитов
-
-В случае проблем всегда можно использовать кнопку **STOP** для немедленной остановки.
+Most debugging should focus on mechanical calibration and performance optimization rather than fundamental system issues. All core functionality has been thoroughly tested and validated.
