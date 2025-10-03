@@ -46,11 +46,17 @@ float progress = 0.0f;
 bool servos_reset = false;
 unsigned long setup_complete_time = 0;
 
+// Переменные для мониторинга батареи
+unsigned long last_battery_update = 0;
+float battery_voltage = 0.0f;
+
 void init_webserver();
 void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length);
 void handle_command(const char* cmd);
 void sendCoordinatesToWeb(const char* legName, const char* type, int coxa, int femur, int tibia);
 void sendPhaseToWeb(const char* phaseInfo);
+float read_battery_voltage();
+void send_battery_status();
 
 void setup() {
   Serial.begin(115200);
@@ -98,6 +104,11 @@ void setup() {
 
   SafetySystem::init();
   
+  // Инициализация ADC для мониторинга батареи
+  analogReadResolution(12); // 12-bit разрешение (0-4095)
+  pinMode(BATTERY_PIN, INPUT);
+  Logger::log(Logger::INFO, "Battery monitor initialized on pin %d", BATTERY_PIN);
+  
   // Инициализация системы кинематики
   hexapod.init();
   
@@ -129,6 +140,12 @@ void loop() {
   server.handleClient();
   SafetySystem::update_load_monitor();
 
+  // Мониторинг и отправка данных о батарее
+  if (millis() - last_battery_update >= BATTERY_UPDATE_INTERVAL) {
+    last_battery_update = millis();
+    send_battery_status();
+  }
+
   handle_gait_cycle();
 }
 
@@ -155,14 +172,17 @@ void handle_gait_cycle() {
 
       const int (*traj)[3] = is_transfer ? TRANSFER_TRAJ : SUPPORT_TRAJ;
 
-    // НОВАЯ ЛОГИКА: Зеркальные сервоприводы получают те же команды для того же физического движения
-    // Применяем LEG_LIFT_DIRECTIONS для всех ног единообразно
+    // ИСПРАВЛЕННАЯ ЛОГИКА: Для движения ВПЕРЁД используем LEG_FORWARD_DIRECTIONS для COXA
+    // Зеркальные сервоприводы получают те же команды для синхронного движения
+    // LEG_FORWARD_DIRECTIONS обеспечивает, что все ноги двигаются в одном направлении
     
     int base_coxa_offset = traj[current_step][0] - NEUTRAL;
     int base_femur_offset = traj[current_step][1] - NEUTRAL;
     int base_tibia_offset = traj[current_step][2] - NEUTRAL;
     
-    int coxa = NEUTRAL + LEG_OFFSETS[leg][COXA] + (base_coxa_offset * LEG_LIFT_DIRECTIONS[leg][COXA]);
+    // COXA использует LEG_FORWARD_DIRECTIONS (все ноги +1 для синхронного движения)
+    // FEMUR и TIBIA используют LEG_LIFT_DIRECTIONS (зеркальная инверсия для подъёма)
+    int coxa = NEUTRAL + LEG_OFFSETS[leg][COXA] + (base_coxa_offset * LEG_FORWARD_DIRECTIONS[leg]);
     int femur = NEUTRAL + LEG_OFFSETS[leg][FEMUR] + (base_femur_offset * LEG_LIFT_DIRECTIONS[leg][FEMUR]);
     int tibia = NEUTRAL + LEG_OFFSETS[leg][TIBIA] + (base_tibia_offset * LEG_LIFT_DIRECTIONS[leg][TIBIA]);
       
@@ -232,6 +252,8 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length)
   switch (type) {
     case WStype_CONNECTED:
       Logger::log(Logger::INFO, "Client %d connected", num);
+      // Отправляем текущий статус батареи новому клиенту
+      send_battery_status();
       break;
 
     case WStype_TEXT:
@@ -582,5 +604,46 @@ void calibrate_servos() {
       int servo = LEG_SERVO_MAP[leg][joint];
       SafetySystem::set_servo(servo, NEUTRAL);
     }
+  }
+}
+
+// Функция для чтения напряжения батареи через ADC
+float read_battery_voltage() {
+  // Читаем значение ADC (усредняем 10 измерений для точности)
+  int adc_sum = 0;
+  for (int i = 0; i < 10; i++) {
+    adc_sum += analogRead(BATTERY_PIN);
+    delayMicroseconds(100);
+  }
+  int adc_value = adc_sum / 10;
+  
+  // Преобразуем ADC в напряжение
+  // Формула: Voltage = (ADC_value / ADC_RESOLUTION) * ADC_REF_VOLTAGE * VOLTAGE_DIVIDER
+  float voltage = (float)adc_value / ADC_RESOLUTION * ADC_REF_VOLTAGE * VOLTAGE_DIVIDER;
+  
+  Logger::log(Logger::DEBUG, "Battery: ADC=%d, Voltage=%.2fV", adc_value, voltage);
+  
+  return voltage;
+}
+
+// Функция для отправки статуса батареи на веб-страницу
+void send_battery_status() {
+  battery_voltage = read_battery_voltage();
+  
+  // Формируем сообщение
+  char batteryMsg[32];
+  snprintf(batteryMsg, sizeof(batteryMsg), "BATTERY:%.2f", battery_voltage);
+  
+  // Отправляем через WebSocket
+  webSocket.broadcastTXT(batteryMsg);
+  
+  Logger::log(Logger::INFO, "Battery status sent: %.2fV", battery_voltage);
+  
+  // Предупреждение о низком заряде
+  if (battery_voltage < 9.5f) {
+    Logger::log(Logger::WARNING, "⚠️  LOW BATTERY: %.2fV - Charge soon!", battery_voltage);
+  }
+  if (battery_voltage < 9.0f) {
+    Logger::log(Logger::ERROR, "🔋 CRITICAL BATTERY: %.2fV - STOP OPERATION!", battery_voltage);
   }
 }

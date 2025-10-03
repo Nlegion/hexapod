@@ -163,6 +163,59 @@ const char PROGMEM PAGE_HTML[] = R"=====(
             border: 1px solid #bee5eb;
         }
         
+        /* Battery indicator */
+        #battery-status {
+            background: #fff;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 12px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .battery-icon {
+            width: 30px;
+            height: 16px;
+            border: 2px solid #333;
+            border-radius: 3px;
+            position: relative;
+            display: inline-block;
+        }
+        
+        .battery-icon::after {
+            content: '';
+            position: absolute;
+            right: -4px;
+            top: 4px;
+            width: 3px;
+            height: 6px;
+            background: #333;
+            border-radius: 0 2px 2px 0;
+        }
+        
+        .battery-level {
+            position: absolute;
+            left: 2px;
+            top: 2px;
+            bottom: 2px;
+            width: calc(100% - 4px);
+            border-radius: 1px;
+            transition: all 0.3s ease;
+        }
+        
+        .battery-high { background: linear-gradient(90deg, #28a745, #20c997); }
+        .battery-medium { background: linear-gradient(90deg, #ffc107, #fd7e14); }
+        .battery-low { background: linear-gradient(90deg, #dc3545, #c82333); }
+        .battery-critical { background: #dc3545; animation: blink 1s infinite; }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+        
          /* Coordinates display */
          #coordinates-display {
              background: #f8f9fa;
@@ -334,6 +387,12 @@ const char PROGMEM PAGE_HTML[] = R"=====(
             <h1>🕷️ Hexapod Robot Control</h1>
             <div class="status-compact">
                 <div id="connection-status">Connecting...</div>
+                <div id="battery-status">
+                    <div class="battery-icon">
+                        <div id="battery-level" class="battery-level battery-high" style="width: 100%;"></div>
+                    </div>
+                    <span id="battery-text">-- V</span>
+                </div>
                 <div id="command-status">Ready</div>
             </div>
         </div>
@@ -483,7 +542,45 @@ const char PROGMEM PAGE_HTML[] = R"=====(
             } else if (message.startsWith('CLEAR_COORDS')) {
                 // Очищаем дисплей координат
                 clearCoordinatesDisplay();
+            } else if (message.startsWith('BATTERY:')) {
+                // Обновляем индикатор батареи
+                const voltage = parseFloat(message.substring(8)); // убираем "BATTERY:"
+                updateBatteryIndicator(voltage);
             }
+        }
+        
+        function updateBatteryIndicator(voltage) {
+            const batteryLevel = document.getElementById('battery-level');
+            const batteryText = document.getElementById('battery-text');
+            
+            // Обновляем текст
+            batteryText.textContent = voltage.toFixed(2) + ' V';
+            
+            // Настройка для Li-Ion/Li-Po батареи (типично 3S = 9.0-12.6V)
+            // Можно настроить под вашу конфигурацию батареи
+            const voltageMax = 12.6; // Полностью заряжена (3S Li-Po)
+            const voltageMin = 9.0;   // Разряжена (критический уровень)
+            
+            // Вычисляем процент
+            let percentage = ((voltage - voltageMin) / (voltageMax - voltageMin)) * 100;
+            percentage = Math.max(0, Math.min(100, percentage)); // Ограничиваем 0-100%
+            
+            // Обновляем ширину индикатора
+            batteryLevel.style.width = percentage + '%';
+            
+            // Меняем цвет в зависимости от уровня
+            batteryLevel.className = 'battery-level';
+            if (percentage > 60) {
+                batteryLevel.classList.add('battery-high');
+            } else if (percentage > 30) {
+                batteryLevel.classList.add('battery-medium');
+            } else if (percentage > 15) {
+                batteryLevel.classList.add('battery-low');
+            } else {
+                batteryLevel.classList.add('battery-critical');
+            }
+            
+            console.log(`Battery updated: ${voltage}V (${percentage.toFixed(1)}%)`);
         }
         
         function clearCoordinatesDisplay() {

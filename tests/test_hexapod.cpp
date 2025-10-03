@@ -8,7 +8,7 @@
 // Функции трипоидной походки для тестирования
 class GaitTester {
 public:
-    // Имитация функции handle_gait_cycle из hexapod.ino
+    // Имитация функции handle_gait_cycle из hexapod.ino с ИСПРАВЛЕННОЙ логикой
     static void test_gait_cycle_step(GaitPhase phase, int step) {
         for (int leg = 0; leg < TOTAL_LEGS; leg++) {
             bool is_transfer = (phase == GaitPhase::PHASE1 &&
@@ -17,22 +17,17 @@ public:
                 (leg == LEG_MIDDLE_RIGHT || leg == LEG_REAR_LEFT || leg == LEG_FRONT_LEFT));
 
             const int (*traj)[3] = is_transfer ? TRANSFER_TRAJ : SUPPORT_TRAJ;
-            bool is_left_leg = (leg == LEG_REAR_LEFT || leg == LEG_MIDDLE_LEFT || leg == LEG_FRONT_LEFT);
             
-            int coxa, femur, tibia;
+            // ИСПРАВЛЕННАЯ ЛОГИКА: используем LEG_FORWARD_DIRECTIONS для COXA
+            int base_coxa_offset = traj[step][0] - NEUTRAL;
+            int base_femur_offset = traj[step][1] - NEUTRAL;
+            int base_tibia_offset = traj[step][2] - NEUTRAL;
             
-            if (is_left_leg) {
-                coxa = NEUTRAL + LEG_OFFSETS[leg][COXA];
-                int base_femur_offset = traj[step][1] - NEUTRAL;
-                int base_tibia_offset = traj[step][2] - NEUTRAL;
-                
-                femur = NEUTRAL + LEG_OFFSETS[leg][FEMUR] + (base_femur_offset * LEG_LIFT_DIRECTIONS[leg][FEMUR]);
-                tibia = NEUTRAL + LEG_OFFSETS[leg][TIBIA] + (base_tibia_offset * LEG_LIFT_DIRECTIONS[leg][TIBIA]);
-            } else {
-                coxa = traj[step][0] + LEG_OFFSETS[leg][COXA];
-                femur = traj[step][1] + LEG_OFFSETS[leg][FEMUR];
-                tibia = traj[step][2] + LEG_OFFSETS[leg][TIBIA];
-            }
+            // COXA использует LEG_FORWARD_DIRECTIONS (все ноги +1 для синхронного движения)
+            // FEMUR и TIBIA используют LEG_LIFT_DIRECTIONS (зеркальная инверсия для подъёма)
+            int coxa = NEUTRAL + LEG_OFFSETS[leg][COXA] + (base_coxa_offset * LEG_FORWARD_DIRECTIONS[leg]);
+            int femur = NEUTRAL + LEG_OFFSETS[leg][FEMUR] + (base_femur_offset * LEG_LIFT_DIRECTIONS[leg][FEMUR]);
+            int tibia = NEUTRAL + LEG_OFFSETS[leg][TIBIA] + (base_tibia_offset * LEG_LIFT_DIRECTIONS[leg][TIBIA]);
             
             coxa = constrain(coxa, MIN_PULSE, MAX_PULSE);
             femur = constrain(femur, MIN_PULSE, MAX_PULSE);
@@ -96,6 +91,16 @@ TEST(lift_directions_valid) {
             ASSERT_EQ(1, femur_dir);   
             ASSERT_EQ(-1, tibia_dir);  
         }
+    }
+}
+
+TEST(forward_directions_valid) {
+    // Проверяем, что направления для движения ВПЕРЁД корректные
+    for (int leg = 0; leg < TOTAL_LEGS; leg++) {
+        int forward_dir = LEG_FORWARD_DIRECTIONS[leg];
+        
+        // Все ноги должны иметь +1 для синхронного движения вперёд
+        ASSERT_EQ(1, forward_dir);
     }
 }
 
