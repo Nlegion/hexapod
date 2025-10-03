@@ -243,6 +243,20 @@ void handle_command(const char* cmd) {
   } else if (strcmp(cmd, "NORMAL") == 0) {
     current_step_delay = STEP_DELAY;
     Logger::log(Logger::INFO, "Normal gait activated (delay: %lu ms)", current_step_delay);
+  } else if (strcmp(cmd, "BATTERY_CHECK") == 0) {
+    // Диагностическая команда для проверки батареи
+    Logger::log(Logger::INFO, "=== BATTERY DIAGNOSTIC ===");
+    Logger::log(Logger::INFO, "Pin: %d", BATTERY_PIN);
+    Logger::log(Logger::INFO, "Divider: %.2f", VOLTAGE_DIVIDER);
+    Logger::log(Logger::INFO, "ADC Ref: %.2fV", ADC_REF_VOLTAGE);
+    Logger::log(Logger::INFO, "ADC Resolution: %d", ADC_RESOLUTION);
+    
+    // Читаем несколько раз для диагностики
+    for (int i = 0; i < 3; i++) {
+      delay(100);
+      send_battery_status();
+    }
+    Logger::log(Logger::INFO, "=========================");
   } else {
     Logger::log(Logger::WARNING, "Unknown command: %s", cmd);
   }
@@ -609,6 +623,35 @@ void calibrate_servos() {
 
 // Функция для чтения напряжения батареи через ADC
 float read_battery_voltage() {
+  // ═══════════════════════════════════════════════════════════════
+  // 🔋 РЕЖИМ СИМУЛЯЦИИ БАТАРЕИ (временный, пока нет делителя)
+  // ═══════════════════════════════════════════════════════════════
+  // После подключения реального делителя напряжения раскомментируйте
+  // код ниже и удалите блок симуляции!
+  
+  static float simulated_voltage = 11.8f;  // Начальное напряжение (почти полная зарядка)
+  static unsigned long last_update = 0;
+  
+  // Медленная "разрядка" для реализма
+  // Теряем примерно 0.1V каждые 10 минут (как реальная батарея под нагрузкой)
+  if (millis() - last_update > 60000) {  // Каждую минуту
+    simulated_voltage -= 0.01f;  // Падение на 0.01V
+    last_update = millis();
+    
+    // Автоматическая "перезарядка" при критическом уровне
+    if (simulated_voltage < 9.0f) {
+      simulated_voltage = 12.0f;
+      Logger::log(Logger::INFO, "🔌 Simulated battery recharged to 12.0V");
+    }
+  }
+  
+  Logger::log(Logger::INFO, "Battery (SIMULATED): %.2fV - Connect real voltage divider to disable simulation", simulated_voltage);
+  return simulated_voltage;
+  
+  /* ═══════════════════════════════════════════════════════════════
+   * РЕАЛЬНОЕ ЧТЕНИЕ ADC (раскомментируйте после подключения делителя)
+   * ═══════════════════════════════════════════════════════════════
+   
   // Читаем значение ADC (усредняем 10 измерений для точности)
   int adc_sum = 0;
   for (int i = 0; i < 10; i++) {
@@ -621,9 +664,15 @@ float read_battery_voltage() {
   // Формула: Voltage = (ADC_value / ADC_RESOLUTION) * ADC_REF_VOLTAGE * VOLTAGE_DIVIDER
   float voltage = (float)adc_value / ADC_RESOLUTION * ADC_REF_VOLTAGE * VOLTAGE_DIVIDER;
   
-  Logger::log(Logger::DEBUG, "Battery: ADC=%d, Voltage=%.2fV", adc_value, voltage);
+  // Подробная диагностическая информация
+  Logger::log(Logger::INFO, "Battery ADC: raw=%d (%.1f%%), V_adc=%.3fV, V_battery=%.2fV", 
+              adc_value, 
+              (float)adc_value / ADC_RESOLUTION * 100,
+              (float)adc_value / ADC_RESOLUTION * ADC_REF_VOLTAGE,
+              voltage);
   
   return voltage;
+  */
 }
 
 // Функция для отправки статуса батареи на веб-страницу

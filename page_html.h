@@ -445,7 +445,7 @@ const char PROGMEM PAGE_HTML[] = R"=====(
             </div>
             <div class="test-grid" style="margin-top: 10px;">
                 <button class="diagnostic" onclick="send('JOINT_TEST')">Joint Directions</button>
-                <button></button>
+                <button class="diagnostic" onclick="send('BATTERY_CHECK')" style="background: #17a2b8;">🔋 Battery Check</button>
                 <button></button>
                 <button></button>
             </div>
