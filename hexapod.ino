@@ -29,6 +29,17 @@ unsigned long current_step_delay = STEP_DELAY; // Текущая скорост�
 
 bool is_moving = false;
 
+// Направления движения
+enum class MovementDirection {
+  STOP,
+  FORWARD,
+  BACKWARD,
+  TURN_LEFT,
+  TURN_RIGHT
+};
+
+MovementDirection movement_direction = MovementDirection::STOP;
+
 enum class GaitState {
   IDLE,
   LIFT,
@@ -171,20 +182,48 @@ void handle_gait_cycle() {
           (leg == LEG_MIDDLE_RIGHT || leg == LEG_REAR_LEFT || leg == LEG_FRONT_LEFT));
 
       const int (*traj)[3] = is_transfer ? TRANSFER_TRAJ : SUPPORT_TRAJ;
-
-    // ИСПРАВЛЕННАЯ ЛОГИКА: Для движения ВПЕРЁД используем LEG_FORWARD_DIRECTIONS для COXA
-    // Зеркальные сервоприводы получают те же команды для синхронного движения
-    // LEG_FORWARD_DIRECTIONS обеспечивает, что все ноги двигаются в одном направлении
     
-    int base_coxa_offset = traj[current_step][0] - NEUTRAL;
-    int base_femur_offset = traj[current_step][1] - NEUTRAL;
-    int base_tibia_offset = traj[current_step][2] - NEUTRAL;
+      int base_coxa_offset = traj[current_step][0] - NEUTRAL;
+      int base_femur_offset = traj[current_step][1] - NEUTRAL;
+      int base_tibia_offset = traj[current_step][2] - NEUTRAL;
     
-    // COXA использует LEG_FORWARD_DIRECTIONS (все ноги +1 для синхронного движения)
-    // FEMUR и TIBIA используют LEG_LIFT_DIRECTIONS (зеркальная инверсия для подъёма)
-    int coxa = NEUTRAL + LEG_OFFSETS[leg][COXA] + (base_coxa_offset * LEG_FORWARD_DIRECTIONS[leg]);
-    int femur = NEUTRAL + LEG_OFFSETS[leg][FEMUR] + (base_femur_offset * LEG_LIFT_DIRECTIONS[leg][FEMUR]);
-    int tibia = NEUTRAL + LEG_OFFSETS[leg][TIBIA] + (base_tibia_offset * LEG_LIFT_DIRECTIONS[leg][TIBIA]);
+      // ═══════════════════════════════════════════════════════════
+      // РАСЧЁТ НАПРАВЛЕНИЯ ДВИЖЕНИЯ COXA (горизонтальное вращение)
+      // ═══════════════════════════════════════════════════════════
+      int coxa_direction = LEG_FORWARD_DIRECTIONS[leg];
+      bool is_left_leg = (leg == LEG_REAR_LEFT || leg == LEG_MIDDLE_LEFT || leg == LEG_FRONT_LEFT);
+      
+      // Модифицируем направление в зависимости от команды движения
+      switch (movement_direction) {
+        case MovementDirection::BACKWARD:
+          // НАЗАД: инвертируем направление для всех ног
+          coxa_direction *= -1;
+          break;
+          
+        case MovementDirection::TURN_LEFT:
+          // ПОВОРОТ ВЛЕВО: левые ноги назад (-1), правые вперёд (+1)
+          if (is_left_leg) {
+            coxa_direction *= -1;
+          }
+          break;
+          
+        case MovementDirection::TURN_RIGHT:
+          // ПОВОРОТ ВПРАВО: правые ноги назад (-1), левые вперёд (+1)
+          if (!is_left_leg) {
+            coxa_direction *= -1;
+          }
+          break;
+          
+        case MovementDirection::FORWARD:
+        default:
+          // ВПЕРЁД: используем стандартное направление
+          break;
+      }
+    
+      // Вычисляем финальные позиции
+      int coxa = NEUTRAL + LEG_OFFSETS[leg][COXA] + (base_coxa_offset * coxa_direction);
+      int femur = NEUTRAL + LEG_OFFSETS[leg][FEMUR] + (base_femur_offset * LEG_LIFT_DIRECTIONS[leg][FEMUR]);
+      int tibia = NEUTRAL + LEG_OFFSETS[leg][TIBIA] + (base_tibia_offset * LEG_LIFT_DIRECTIONS[leg][TIBIA]);
       
       // Применяем безопасные ограничения
       coxa = constrain(coxa, MIN_PULSE, MAX_PULSE);
@@ -194,10 +233,177 @@ void handle_gait_cycle() {
       SafetySystem::set_servo(LEG_SERVO_MAP[leg][COXA], coxa);
       SafetySystem::set_servo(LEG_SERVO_MAP[leg][FEMUR], femur);
       SafetySystem::set_servo(LEG_SERVO_MAP[leg][TIBIA], tibia);
-      
-          }
+    }
   }
 }
+
+// ═══════════════════════════════════════════════════════════════
+// 🎭 ЖЕСТЫ И АНИМАЦИИ (аналог legacy функций)
+// ═══════════════════════════════════════════════════════════════
+
+void perform_shake_gesture() {
+  Logger::log(Logger::INFO, "🤝 Performing SHAKE gesture (Front Right leg)");
+  is_moving = false; // Останавливаем походку
+  
+  // Используем переднюю правую ногу (LEG_FRONT_RIGHT = 0)
+  int leg = LEG_FRONT_RIGHT;
+  int coxa_servo = LEG_SERVO_MAP[leg][COXA];
+  int femur_servo = LEG_SERVO_MAP[leg][FEMUR];
+  int tibia_servo = LEG_SERVO_MAP[leg][TIBIA];
+  
+  // Базовые позиции с калибровкой
+  int coxa_neutral = NEUTRAL + LEG_OFFSETS[leg][COXA];
+  int femur_neutral = NEUTRAL + LEG_OFFSETS[leg][FEMUR];
+  int tibia_neutral = NEUTRAL + LEG_OFFSETS[leg][TIBIA];
+  
+  // Поднять ногу вперёд
+  SafetySystem::set_servo(coxa_servo, coxa_neutral + 80);
+  SafetySystem::set_servo(femur_servo, femur_neutral + 200);
+  SafetySystem::set_servo(tibia_servo, tibia_neutral - 150);
+  delay(300);
+  
+  // Тряска (быстрые движения вверх-вниз)
+  for (int i = 0; i < 3; i++) {
+    SafetySystem::set_servo(tibia_servo, tibia_neutral - 200);
+    delay(150);
+    SafetySystem::set_servo(tibia_servo, tibia_neutral - 100);
+    delay(150);
+  }
+  
+  // Вернуть ногу в нейтраль
+  SafetySystem::set_servo(coxa_servo, coxa_neutral);
+  SafetySystem::set_servo(femur_servo, femur_neutral);
+  SafetySystem::set_servo(tibia_servo, tibia_neutral);
+  delay(300);
+  
+  Logger::log(Logger::INFO, "✅ SHAKE gesture complete");
+}
+
+void perform_wave_gesture() {
+  Logger::log(Logger::INFO, "👋 Performing WAVE gesture (Front Right leg)");
+  is_moving = false;
+  
+  int leg = LEG_FRONT_RIGHT;
+  int coxa_servo = LEG_SERVO_MAP[leg][COXA];
+  int femur_servo = LEG_SERVO_MAP[leg][FEMUR];
+  int tibia_servo = LEG_SERVO_MAP[leg][TIBIA];
+  
+  int coxa_neutral = NEUTRAL + LEG_OFFSETS[leg][COXA];
+  int femur_neutral = NEUTRAL + LEG_OFFSETS[leg][FEMUR];
+  int tibia_neutral = NEUTRAL + LEG_OFFSETS[leg][TIBIA];
+  
+  // Поднять ногу вверх
+  SafetySystem::set_servo(femur_servo, femur_neutral + 150);
+  SafetySystem::set_servo(tibia_servo, tibia_neutral + 150);
+  delay(300);
+  
+  // Махание (движения COXA влево-вправо)
+  for (int i = 0; i < 3; i++) {
+    SafetySystem::set_servo(coxa_servo, coxa_neutral + 100);
+    delay(200);
+    SafetySystem::set_servo(coxa_servo, coxa_neutral - 100);
+    delay(200);
+  }
+  
+  // Вернуть в нейтраль
+  SafetySystem::set_servo(coxa_servo, coxa_neutral);
+  SafetySystem::set_servo(femur_servo, femur_neutral);
+  SafetySystem::set_servo(tibia_servo, tibia_neutral);
+  delay(300);
+  
+  Logger::log(Logger::INFO, "✅ WAVE gesture complete");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 📐 РЕГУЛИРОВКИ ПОЗЫ ТЕЛА (аналог Adj_* функций)
+// ═══════════════════════════════════════════════════════════════
+
+void adjust_body_height(int offset) {
+  Logger::log(Logger::INFO, "📏 Adjusting body height by %d", offset);
+  is_moving = false;
+  
+  // Изменяем FEMUR и TIBIA всех ног для изменения высоты
+  for (int leg = 0; leg < TOTAL_LEGS; leg++) {
+    int femur_servo = LEG_SERVO_MAP[leg][FEMUR];
+    int tibia_servo = LEG_SERVO_MAP[leg][TIBIA];
+    
+    int femur_pos = NEUTRAL + LEG_OFFSETS[leg][FEMUR] + (offset * LEG_LIFT_DIRECTIONS[leg][FEMUR]);
+    int tibia_pos = NEUTRAL + LEG_OFFSETS[leg][TIBIA] - (offset * LEG_LIFT_DIRECTIONS[leg][TIBIA] / 2);
+    
+    SafetySystem::set_servo(femur_servo, constrain(femur_pos, MIN_PULSE, MAX_PULSE));
+    SafetySystem::set_servo(tibia_servo, constrain(tibia_pos, MIN_PULSE, MAX_PULSE));
+  }
+  
+  delay(500);
+  Logger::log(Logger::INFO, "✅ Body height adjusted");
+}
+
+void adjust_head_tilt(int offset) {
+  Logger::log(Logger::INFO, "🦎 Adjusting head tilt by %d", offset);
+  is_moving = false;
+  
+  // Передние ноги двигаем в одну сторону, задние в другую (эффект наклона головы)
+  for (int leg = 0; leg < TOTAL_LEGS; leg++) {
+    int femur_servo = LEG_SERVO_MAP[leg][FEMUR];
+    int tibia_servo = LEG_SERVO_MAP[leg][TIBIA];
+    
+    // Передние ноги (FR, FL) - двигаем по offset
+    // Задние ноги (RR, RL) - двигаем в обратном направлении
+    int multiplier = (leg == LEG_FRONT_RIGHT || leg == LEG_FRONT_LEFT) ? 1 : -1;
+    
+    int femur_pos = NEUTRAL + LEG_OFFSETS[leg][FEMUR] + (offset * multiplier * LEG_LIFT_DIRECTIONS[leg][FEMUR]);
+    int tibia_pos = NEUTRAL + LEG_OFFSETS[leg][TIBIA] - (offset * multiplier * LEG_LIFT_DIRECTIONS[leg][TIBIA] / 2);
+    
+    SafetySystem::set_servo(femur_servo, constrain(femur_pos, MIN_PULSE, MAX_PULSE));
+    SafetySystem::set_servo(tibia_servo, constrain(tibia_pos, MIN_PULSE, MAX_PULSE));
+  }
+  
+  delay(500);
+  Logger::log(Logger::INFO, "✅ Head tilt adjusted");
+}
+
+void adjust_body_lean(int offset) {
+  Logger::log(Logger::INFO, "↔️ Adjusting body lean by %d", offset);
+  is_moving = false;
+  
+  // Левые ноги двигаем в одну сторону, правые в другую (эффект наклона влево/вправо)
+  for (int leg = 0; leg < TOTAL_LEGS; leg++) {
+    int femur_servo = LEG_SERVO_MAP[leg][FEMUR];
+    int tibia_servo = LEG_SERVO_MAP[leg][TIBIA];
+    
+    bool is_left = (leg == LEG_REAR_LEFT || leg == LEG_MIDDLE_LEFT || leg == LEG_FRONT_LEFT);
+    int multiplier = is_left ? 1 : -1;
+    
+    int femur_pos = NEUTRAL + LEG_OFFSETS[leg][FEMUR] + (offset * multiplier * LEG_LIFT_DIRECTIONS[leg][FEMUR]);
+    int tibia_pos = NEUTRAL + LEG_OFFSETS[leg][TIBIA] - (offset * multiplier * LEG_LIFT_DIRECTIONS[leg][TIBIA] / 2);
+    
+    SafetySystem::set_servo(femur_servo, constrain(femur_pos, MIN_PULSE, MAX_PULSE));
+    SafetySystem::set_servo(tibia_servo, constrain(tibia_pos, MIN_PULSE, MAX_PULSE));
+  }
+  
+  delay(500);
+  Logger::log(Logger::INFO, "✅ Body lean adjusted");
+}
+
+void adjust_body_twist(int offset) {
+  Logger::log(Logger::INFO, "🔄 Adjusting body twist by %d", offset);
+  is_moving = false;
+  
+  // Поворачиваем все COXA в одном направлении (эффект скручивания корпуса)
+  for (int leg = 0; leg < TOTAL_LEGS; leg++) {
+    int coxa_servo = LEG_SERVO_MAP[leg][COXA];
+    int coxa_pos = NEUTRAL + LEG_OFFSETS[leg][COXA] + (offset * LEG_FORWARD_DIRECTIONS[leg]);
+    
+    SafetySystem::set_servo(coxa_servo, constrain(coxa_pos, MIN_PULSE, MAX_PULSE));
+  }
+  
+  delay(500);
+  Logger::log(Logger::INFO, "✅ Body twist adjusted");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 📨 ОБРАБОТКА КОМАНД
+// ═══════════════════════════════════════════════════════════════
 
 void handle_command(const char* cmd) {
   if (strcmp(cmd, "FWD") == 0) {
@@ -205,10 +411,33 @@ void handle_command(const char* cmd) {
     current_phase = GaitPhase::PHASE1;
     current_step = 0;
     last_step_time = millis();
-    Logger::log(Logger::INFO, "Starting fixed trajectory gait");
+    movement_direction = MovementDirection::FORWARD;
+    Logger::log(Logger::INFO, "Starting FORWARD gait");
+  } else if (strcmp(cmd, "BWD") == 0) {
+    is_moving = true;
+    current_phase = GaitPhase::PHASE1;
+    current_step = 0;
+    last_step_time = millis();
+    movement_direction = MovementDirection::BACKWARD;
+    Logger::log(Logger::INFO, "Starting BACKWARD gait");
+  } else if (strcmp(cmd, "LEFT") == 0) {
+    is_moving = true;
+    current_phase = GaitPhase::PHASE1;
+    current_step = 0;
+    last_step_time = millis();
+    movement_direction = MovementDirection::TURN_LEFT;
+    Logger::log(Logger::INFO, "Starting LEFT turn");
+  } else if (strcmp(cmd, "RIGHT") == 0) {
+    is_moving = true;
+    current_phase = GaitPhase::PHASE1;
+    current_step = 0;
+    last_step_time = millis();
+    movement_direction = MovementDirection::TURN_RIGHT;
+    Logger::log(Logger::INFO, "Starting RIGHT turn");
   } else if (strcmp(cmd, "STOP") == 0) {
     Logger::log(Logger::INFO, "Executing STOP command");
     is_moving = false;
+    movement_direction = MovementDirection::STOP;
     // Возврат в нейтральное положение
     for (int leg = 0; leg < TOTAL_LEGS; leg++) {
       hexapod.reset_pose(static_cast<LegID>(leg));
@@ -257,6 +486,26 @@ void handle_command(const char* cmd) {
       send_battery_status();
     }
     Logger::log(Logger::INFO, "=========================");
+  } else if (strcmp(cmd, "SHAKE") == 0) {
+    perform_shake_gesture();
+  } else if (strcmp(cmd, "WAVE") == 0) {
+    perform_wave_gesture();
+  } else if (strcmp(cmd, "BODY_UP") == 0) {
+    adjust_body_height(50);
+  } else if (strcmp(cmd, "BODY_DOWN") == 0) {
+    adjust_body_height(-50);
+  } else if (strcmp(cmd, "HEAD_UP") == 0) {
+    adjust_head_tilt(50);
+  } else if (strcmp(cmd, "HEAD_DOWN") == 0) {
+    adjust_head_tilt(-50);
+  } else if (strcmp(cmd, "LEAN_LEFT") == 0) {
+    adjust_body_lean(-50);
+  } else if (strcmp(cmd, "LEAN_RIGHT") == 0) {
+    adjust_body_lean(50);
+  } else if (strcmp(cmd, "TWIST_LEFT") == 0) {
+    adjust_body_twist(-50);
+  } else if (strcmp(cmd, "TWIST_RIGHT") == 0) {
+    adjust_body_twist(50);
   } else {
     Logger::log(Logger::WARNING, "Unknown command: %s", cmd);
   }

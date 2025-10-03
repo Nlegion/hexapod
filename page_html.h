@@ -436,6 +436,32 @@ const char PROGMEM PAGE_HTML[] = R"=====(
         </div>
 
         <div class="control-section">
+            <h2>🎭 Gestures & Tricks</h2>
+            <div class="test-grid">
+                <button class="test" onclick="send('SHAKE')" style="background: #9c27b0;">🤝 Shake Hand</button>
+                <button class="test" onclick="send('WAVE')" style="background: #9c27b0;">👋 Wave</button>
+                <button></button>
+                <button></button>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <h2>📐 Body Adjustments</h2>
+            <div class="test-grid">
+                <button class="test" onclick="send('BODY_UP')" style="background: #ff5722;">⬆️ Higher</button>
+                <button class="test" onclick="send('HEAD_UP')" style="background: #ff5722;">🔼 Head Up</button>
+                <button class="test" onclick="send('TWIST_LEFT')" style="background: #ff5722;">↶ Twist L</button>
+                <button class="test" onclick="send('LEAN_LEFT')" style="background: #ff5722;">⬅️ Lean L</button>
+            </div>
+            <div class="test-grid" style="margin-top: 10px;">
+                <button class="test" onclick="send('BODY_DOWN')" style="background: #ff5722;">⬇️ Lower</button>
+                <button class="test" onclick="send('HEAD_DOWN')" style="background: #ff5722;">🔽 Head Down</button>
+                <button class="test" onclick="send('TWIST_RIGHT')" style="background: #ff5722;">↷ Twist R</button>
+                <button class="test" onclick="send('LEAN_RIGHT')" style="background: #ff5722;">➡️ Lean R</button>
+            </div>
+        </div>
+
+        <div class="control-section">
             <h2>Diagnostic Tests</h2>
             <div class="test-grid">
                 <button class="diagnostic" onclick="send('CALIBRATE')">Calibrate</button>
