@@ -73,10 +73,8 @@ Serial1 (pins 4,5) → servo controller at 9600 baud
 ### Movement Control
 - **Corrected Inversion**: Left legs properly mirrored (COXA only)
 - **Safety Limits**: Speed limiting, pulse range validation  
-- **Tripod Coordination**: FR/ML/RR ↔ FL/MR/RL alternation with high clearance
+- **Tripod Coordination**: FR/ML/RR ↔ FL/MR/RL alternation
 - **Live Monitoring**: Real-time leg position feedback
-- **Enhanced Gait**: 39% higher leg lift (FEMUR: 1750μs, TIBIA: 1200μs)
-- **Speed Variants**: Dynamic switching between 120ms/150ms/200ms cycle times
 
 ## 📊 Technical Specifications
 
@@ -84,9 +82,8 @@ Serial1 (pins 4,5) → servo controller at 9600 baud
 - **Servos**: 18x MG90 micro servos (1000-2000μs pulse range)
 - **Controller**: 32-channel RTRobot-compatible PWM driver
 - **Kinematics**: 6-DOF legs, 3 joints per leg (COXA/FEMUR/TIBIA)  
-- **Safety**: Multi-layer pulse validation, adaptive speed limiting, emergency stop
-- **Gait Performance**: High-clearance locomotion (39% increased leg lift)
-- **Interface**: WebSocket-based real-time control with speed toggle, responsive HTML5 UI
+- **Safety**: Multi-layer pulse validation, speed limiting, emergency stop
+- **Interface**: WebSocket-based real-time control, responsive HTML5 UI
 
 ## 🏆 Recent Improvements
 
@@ -102,12 +99,6 @@ Serial1 (pins 4,5) → servo controller at 9600 baud
 - ✅ **Memory leak prevention**: Fixed WebSocket buffer overflows
 - ✅ **Error propagation**: CommandResult enum for detailed diagnostics
 - ✅ **Servo angle limits**: Expanded ranges for complex movements
-
-### Gait Enhancement
-- ✅ **High leg lift**: 39% increased clearance for obstacle navigation
-- ✅ **Optimized trajectories**: Enhanced TRANSFER_TRAJ with FEMUR max 1750μs
-- ✅ **Speed control system**: FAST/NORMAL/SLOW modes with smooth web interface
-- ✅ **Terrain capability**: Improved stability on uneven surfaces
 
 ## 📖 Documentation
 
