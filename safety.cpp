@@ -17,7 +17,7 @@ void SafetySystem::init() {
 }
 
 bool SafetySystem::set_servo(int servo, int pulse) {
-  const int MAX_DELTA = 200;  // Более плавное движение
+  const int MAX_DELTA = 120;  // Улучшенная плавность движений (было 200)
   static int last_pulse[32] = { 0 };
   static bool initialized = false;
   
@@ -38,11 +38,17 @@ bool SafetySystem::set_servo(int servo, int pulse) {
   pulse = constrain(pulse, MIN_PULSE, MAX_PULSE);
   int delta = pulse - last_pulse[servo - 1];  // last_pulse индексируется с 0
 
-  if (abs(delta) > MAX_DELTA) {
-    pulse = last_pulse[servo - 1] + (delta > 0 ? MAX_DELTA : -MAX_DELTA);
-    Logger::log(Logger::WARNING,
-                "Servo %d speed limited: %d → %d",
-                servo, last_pulse[servo - 1], pulse);
+  // Адаптивное ограничение скорости - более плавное для малых изменений
+  int adaptive_delta = MAX_DELTA;
+  if (abs(delta) < 50) {
+    adaptive_delta = MAX_DELTA / 2; // Очень плавно для малых движений
+  }
+
+  if (abs(delta) > adaptive_delta) {
+    pulse = last_pulse[servo - 1] + (delta > 0 ? adaptive_delta : -adaptive_delta);
+    Logger::log(Logger::DEBUG,
+                "Servo %d adaptive speed limited: %d → %d (delta: %d, limit: %d)",
+                servo, last_pulse[servo - 1], pulse, delta, adaptive_delta);
   }
 
   Commands::send_servo(servo, pulse);

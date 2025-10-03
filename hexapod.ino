@@ -20,7 +20,12 @@ LegController hexapod;
 // Добавляем переменные для управления шагами
 int current_step = 0;
 unsigned long last_step_time = 0;
-const unsigned long STEP_DELAY = 200; // Интервал между шагами
+
+// Оптимизированные параметры походки с адаптивной скоростью
+const unsigned long STEP_DELAY = 150; // Оптимизированный интервал для плавности
+const unsigned long FAST_STEP_DELAY = 120; // Быстрая походка
+const unsigned long SLOW_STEP_DELAY = 200; // Медленная походка
+unsigned long current_step_delay = STEP_DELAY; // Текущая скорость
 
 bool is_moving = false;
 
@@ -130,7 +135,7 @@ void loop() {
 void handle_gait_cycle() {
   if (!is_moving) return;
 
-  if (millis() - last_step_time >= STEP_DELAY) {
+  if (millis() - last_step_time >= current_step_delay) {
     current_step = (current_step + 1) % 4;
     last_step_time = millis();
 
@@ -209,6 +214,15 @@ void handle_command(const char* cmd) {
     test_tripod_gait();
   } else if (strcmp(cmd, "JOINT_TEST") == 0) {
     test_joint_directions();
+  } else if (strcmp(cmd, "FAST") == 0) {
+    current_step_delay = FAST_STEP_DELAY;
+    Logger::log(Logger::INFO, "Fast gait activated (delay: %lu ms)", current_step_delay);
+  } else if (strcmp(cmd, "SLOW") == 0) {
+    current_step_delay = SLOW_STEP_DELAY;
+    Logger::log(Logger::INFO, "Slow gait activated (delay: %lu ms)", current_step_delay);
+  } else if (strcmp(cmd, "NORMAL") == 0) {
+    current_step_delay = STEP_DELAY;
+    Logger::log(Logger::INFO, "Normal gait activated (delay: %lu ms)", current_step_delay);
   } else {
     Logger::log(Logger::WARNING, "Unknown command: %s", cmd);
   }
@@ -372,8 +386,8 @@ void test_tripod_gait() {
   is_moving = false;
   
   const char* leg_names[] = {"FR", "MR", "RR", "RL", "ML", "FL"};
-  const int LIFT_AMOUNT = 120;  // Увеличено с 40 до 120 для лучшей видимости
-  const int FORWARD_AMOUNT = 80;  // Увеличено с 30 до 80 для лучшей видимости
+  const int LIFT_AMOUNT = 180;  // УВЕЛИЧЕНО для более высокого подъема (было 140)
+  const int FORWARD_AMOUNT = 120; // Широкий шаг для эффективного движения
   
   Logger::log(Logger::INFO, "Using lift: %d, forward: %d", LIFT_AMOUNT, FORWARD_AMOUNT);
   

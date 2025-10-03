@@ -163,17 +163,92 @@ const char PROGMEM PAGE_HTML[] = R"=====(
             border: 1px solid #bee5eb;
         }
         
-        /* Coordinates display */
-        #coordinates-display {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 5px;
-            padding: 15px;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            max-height: 400px;
-            overflow-y: auto;
-        }
+         /* Coordinates display */
+         #coordinates-display {
+             background: #f8f9fa;
+             border: 1px solid #dee2e6;
+             border-radius: 5px;
+             padding: 15px;
+             font-family: 'Courier New', monospace;
+             font-size: 12px;
+             max-height: 400px;
+             overflow-y: auto;
+         }
+         
+         /* Стильный переключатель скорости */
+         .speed-toggle-container {
+             display: flex;
+             align-items: center;
+             justify-content: center;
+             gap: 15px;
+             margin: 20px 0;
+         }
+         
+         .speed-label {
+             font-size: 18px;
+             font-weight: bold;
+             color: #495057;
+         }
+         
+         .speed-switch {
+             position: relative;
+             display: inline-block;
+             width: 80px;
+             height: 40px;
+         }
+         
+         .speed-switch input {
+             opacity: 0;
+             width: 0;
+             height: 0;
+         }
+         
+         .speed-slider {
+             position: absolute;
+             cursor: pointer;
+             top: 0;
+             left: 0;
+             right: 0;
+             bottom: 0;
+             background-color: #6c757d;
+             border-radius: 20px;
+             transition: .4s;
+             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+         }
+         
+         .speed-slider:before {
+             position: absolute;
+             content: "";
+             height: 32px;
+             width: 32px;
+             left: 4px;
+             bottom: 4px;
+             background-color: white;
+             border-radius: 50%;
+             transition: .4s;
+             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+         }
+         
+         .speed-switch input:checked + .speed-slider {
+             background-color: #ff6b35;
+         }
+         
+         .speed-switch input:checked + .speed-slider:before {
+             transform: translateX(40px);
+         }
+         
+         .speed-slider:hover {
+             box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+         }
+         
+         #speed-indicator {
+             padding: 8px 16px;
+             border-radius: 20px;
+             background: #e9ecef;
+             display: inline-block;
+             min-width: 120px;
+             transition: all 0.3s ease;
+         }
         
         .coord-info {
             color: #6c757d;
@@ -276,6 +351,29 @@ const char PROGMEM PAGE_HTML[] = R"=====(
                 <button class="movement" onclick="send('BWD')">↓</button>
                 <button></button>
             </div>
+            
+             <!-- Стильный переключатель скорости походки -->
+             <div class="speed-controls" style="margin-top: 20px; text-align: center;">
+                 <h3>🏃 Gait Speed Control</h3>
+                 
+                 <!-- Toggle Switch для Fast/Slow -->
+                 <div class="speed-toggle-container">
+                     <span class="speed-label">🐌 Slow</span>
+                     <label class="speed-switch">
+                         <input type="checkbox" id="speedToggle" onchange="toggleSpeed()">
+                         <span class="speed-slider"></span>
+                     </label>
+                     <span class="speed-label">🏃‍♂️ Fast</span>
+                 </div>
+                 
+                 <!-- Дополнительная кнопка Normal -->
+                 <div style="margin-top: 15px;">
+                     <button class="movement" onclick="setNormalSpeed()" style="background: #007bff; padding: 8px 16px;">🚶‍♂️ Normal Speed</button>
+                 </div>
+                 
+                 <!-- Индикатор текущей скорости -->
+                 <div id="speed-indicator" style="margin-top: 10px; font-weight: bold; color: #007bff;">Current: Normal</div>
+             </div>
         </div>
 
         <div class="control-section">
@@ -434,35 +532,70 @@ const char PROGMEM PAGE_HTML[] = R"=====(
             }
         }
 
-        window.send = function(cmd) {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(cmd);
-                
-                // Показываем статус команды
-                commandStatus.textContent = `Executing: ${cmd}`;
-                commandStatus.className = 'executing';
-                console.log("Sent command:", cmd);
-                
-                // Через 3 секунды показываем "завершено"
-                setTimeout(function() {
-                    commandStatus.textContent = `Completed: ${cmd}`;
-                    commandStatus.className = 'completed';
-                }, 3000);
-                
-                // Через 5 секунд возвращаем к "Ready"
-                setTimeout(function() {
-                    commandStatus.textContent = 'Ready';
-                    commandStatus.className = '';
-                }, 5000);
-                
-            } else {
-                console.log("Error: Not connected to send:", cmd);
-                connectionStatus.textContent = 'Not Connected';
-                connectionStatus.className = '';
-                commandStatus.textContent = 'Connection Error';
-                commandStatus.className = '';
-            }
-        }
+         window.send = function(cmd) {
+             if (ws && ws.readyState === WebSocket.OPEN) {
+                 ws.send(cmd);
+                 
+                 // Показываем статус команды
+                 commandStatus.textContent = `Executing: ${cmd}`;
+                 commandStatus.className = 'executing';
+                 console.log("Sent command:", cmd);
+                 
+                 // Через 3 секунды показываем "завершено"
+                 setTimeout(function() {
+                     commandStatus.textContent = `Completed: ${cmd}`;
+                     commandStatus.className = 'completed';
+                 }, 3000);
+                 
+                 // Через 5 секунд возвращаем к "Ready"
+                 setTimeout(function() {
+                     commandStatus.textContent = 'Ready';
+                     commandStatus.className = '';
+                 }, 5000);
+                 
+             } else {
+                 console.log("Error: Not connected to send:", cmd);
+                 connectionStatus.textContent = 'Not Connected';
+                 connectionStatus.className = '';
+                 commandStatus.textContent = 'Connection Error';
+                 commandStatus.className = '';
+             }
+         }
+
+         // Функция переключения скорости Fast/Slow
+         function toggleSpeed() {
+             const toggle = document.getElementById('speedToggle');
+             const indicator = document.getElementById('speed-indicator');
+             
+             if (toggle.checked) {
+                 // Включен = Fast
+                 send('FAST');
+                 indicator.textContent = 'Current: Fast 🏃‍♂️';
+                 indicator.style.color = '#ff6b35';
+                 indicator.style.background = '#fff3cd';
+                 console.log("Speed switched to FAST");
+             } else {
+                 // Выключен = Slow
+                 send('SLOW');
+                 indicator.textContent = 'Current: Slow 🐌';
+                 indicator.style.color = '#6c757d';
+                 indicator.style.background = '#f8f9fa';
+                 console.log("Speed switched to SLOW");
+             }
+         }
+         
+         // Улучшенная функция для установки нормальной скорости
+         function setNormalSpeed() {
+             const toggle = document.getElementById('speedToggle');
+             const indicator = document.getElementById('speed-indicator');
+             
+             toggle.checked = false; // Сбрасываем переключатель в среднее положение
+             send('NORMAL');
+             indicator.textContent = 'Current: Normal 🚶‍♂️';
+             indicator.style.color = '#007bff';
+             indicator.style.background = '#e9ecef';
+             console.log("Speed set to NORMAL");
+         }
 
         connect();
     </script>
