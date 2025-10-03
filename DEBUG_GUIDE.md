@@ -75,8 +75,11 @@ This guide covers troubleshooting for the fully validated hexapod robot system. 
 | `RESET` | Initialize all servos | All legs to neutral position |
 | `DIAGNOSTIC` | Test all 32 channels | Sequential servo movement 1-32 |
 | `JOINT_TEST` | Individual leg testing | Each leg joint moves correctly |
-| `TRIPOD_TEST` | Group coordination | Live coordinates show proper lifting |
-| `FWD` | Forward locomotion | Visible forward movement with gait |
+| `TRIPOD_TEST` | High-lift group coordination | Live coordinates show enhanced lifting height |
+| `FWD` | Forward locomotion | High-clearance gait with visible progression |
+|| `FAST` | Speed mode | 120ms cycle time, rapid movement |
+|| `NORMAL` | Standard mode | 150ms cycle time, balanced performance |
+|| `SLOW` | Careful mode | 200ms cycle time, precise movement |
 | `EMERGENCY` | Emergency stop | Immediate halt of all movement |
 
 ---
