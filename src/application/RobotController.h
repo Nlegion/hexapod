@@ -93,27 +93,27 @@ public:
         // Body adjustment commands (уменьшенные амплитуды для безопасности)
         else if (strcmp(command, "BODY_UP") == 0) {
             gait_->stopMovement();
-            adjustHeight_->execute(60);  // Поднять (уменьшено с 100 до 60)
+            adjustLean_->execute(-50);  // Lean R (было adjustHeight)
         }
         else if (strcmp(command, "BODY_DOWN") == 0) {
             gait_->stopMovement();
-            adjustHeight_->execute(-60);  // Опустить (уменьшено с -100 до -60)
+            adjustLean_->execute(50);  // Lean L (было adjustHeight)
         }
         else if (strcmp(command, "HEAD_UP") == 0) {
             gait_->stopMovement();
-            adjustTilt_->execute(50);  // Наклон вперёд (уменьшено с 80 до 50)
+            adjustTilt_->execute(50);  // Наклон вперёд
         }
         else if (strcmp(command, "HEAD_DOWN") == 0) {
             gait_->stopMovement();
-            adjustTilt_->execute(-50);  // Наклон назад (уменьшено с -80 до -50)
+            adjustTilt_->execute(-50);  // Наклон назад
         }
         else if (strcmp(command, "LEAN_LEFT") == 0) {
             gait_->stopMovement();
-            adjustLean_->execute(50);  // Наклон влево (уменьшено с 80 до 50)
+            adjustHeight_->execute(-60);  // Lower (было adjustLean)
         }
         else if (strcmp(command, "LEAN_RIGHT") == 0) {
             gait_->stopMovement();
-            adjustLean_->execute(-50);  // Наклон вправо (уменьшено с -80 до -50)
+            adjustHeight_->execute(60);  // Higher (было adjustLean)
         }
         else if (strcmp(command, "TWIST_LEFT") == 0) {
             gait_->stopMovement();
