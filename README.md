@@ -4,9 +4,39 @@
 
 Production-ready hexapod robot with tripod gait locomotion, inverse kinematics, and web-based control interface. Built on ESP32-S3 with 32-channel servo controller.
 
-**Current Version:** 3.0 (Optimized Trajectories & Enhanced Gestures)  
+**Current Version:** 4.0 (Clean Architecture + FreeRTOS)  
 **Status:** ✅ Production Ready  
-**Tests:** 29/29 Passing
+**Architecture:** Clean Architecture + Multithreading  
+**Tests:** ✅ **29/29 PASSED** (последний запуск: успешно)
+
+---
+
+## ✨ What's New in v4.0
+
+### 🏗️ Clean Architecture Implementation
+Проект полностью мигрирован на Clean Architecture с разделением на слои:
+- **Core Layer** - типы, конфигурация, логирование
+- **Domain Layer** - бизнес-логика (entities, services, repositories interfaces)
+- **Application Layer** - Use Cases и координация
+- **Infrastructure Layer** - реализации для hardware
+- **DI Container** - управление зависимостями
+
+### ⚡ FreeRTOS Multithreading
+Асинхронная архитектура с 3 tasks на 2 ядрах ESP32:
+- Gait Task (Core 0) - обновление походки 20Hz
+- Web Task (Core 1) - WebSocket + HTTP обработка
+- Battery Task (Core 0) - мониторинг батареи
+
+### 📊 Architecture Comparison
+
+| Aspect | Old (hexapod_legacy.ino) | **New (hexapod.ino)** |
+|--------|--------------------------|------------------------|
+| Lines | 963 lines | **~300 lines main** |
+| Architecture | Monolithic | **Layered (Clean)** |
+| Testability | Сложно | **Легко (DI + Mocks)** |
+| Threading | Blocking loop | **FreeRTOS tasks** |
+| Dependencies | Tight coupling | **Loose coupling (DI)** |
+| Файлов | 8 файлов | **20+ файлов (организовано)** |
 
 ---
 
@@ -27,9 +57,24 @@ cd hexapod
 
 # Upload to ESP32
 Arduino IDE → Open hexapod.ino → Upload
+
+# Or use legacy version
+Arduino IDE → Open hexapod_legacy.ino → Upload
 ```
 
-### 3. First Run
+### 3. Run Tests (Optional but Recommended)
+```bash
+# Windows
+.\run_tests.bat
+
+# Linux/Mac
+chmod +x run_tests.sh
+./run_tests.sh
+```
+
+Expected: **29/29 PASSED** ✅
+
+### 4. First Run
 1. Connect to WiFi network or AP mode (`Hexapod_Config`)
 2. Open web interface at robot's IP address
 3. Execute: `RESET` → `FWD` → Test movement
@@ -38,15 +83,36 @@ Arduino IDE → Open hexapod.ino → Upload
 
 ## 📁 Project Structure
 
+### 🆕 NEW: Clean Architecture Edition
+
 ```
 hexapod/
-├── hexapod.ino              # Main program (ESP32)
-├── config.h                 # Hardware configuration & calibration
-├── commands.h               # Servo communication protocol
-├── kinematics.h             # Inverse/Forward kinematics
-├── safety.cpp/.h            # Safety systems & constraints
-├── logger.h                 # Logging system
-├── page_html.h              # Web control interface
+├── hexapod.ino              # 🆕 Main program (Clean Architecture + FreeRTOS)
+├── hexapod_legacy.ino       # Legacy version (monolithic, still works)
+│
+├── src/                     # 🏗️ Clean Architecture Source
+│   ├── core/                      # ⚙️ Core Layer
+│   │   ├── Types.h                    # Common types & enums
+│   │   ├── Config.h                   # Hardware configuration
+│   │   └── Logger.h                   # Logging system
+│   │
+│   ├── domain/                    # 🎯 Domain Layer (Business Logic)
+│   │   ├── entities/                  # Domain entities
+│   │   ├── services/                  # Domain services (IK, Gait, Safety)
+│   │   └── repositories/              # Repository interfaces
+│   │
+│   ├── application/               # 📋 Application Layer (Use Cases)
+│   │   ├── usecases/                  # Use case implementations
+│   │   ├── dto/                       # Data Transfer Objects
+│   │   └── RobotController.h          # Main controller
+│   │
+│   ├── infrastructure/            # 🔧 Infrastructure (Hardware)
+│   │   └── hardware/                  # Hardware implementations
+│   │
+│   └── di/                        # 💉 Dependency Injection
+│       └── Container.h                # DI Container
+│
+├── [Legacy files]           # Old architecture files (config.h, etc.)
 │
 ├── docs/                    # 📚 Documentation
 │   ├── COMMAND_REFERENCE.md      # Complete command list
@@ -90,6 +156,27 @@ hexapod/
 ├── run_tests.bat/.sh        # Quick test execution
 └── promt                    # AI assistant prompt
 ```
+
+### 🎯 Clean Architecture Benefits
+
+The new **Clean Architecture + FreeRTOS** implementation provides:
+
+**Architecture:**
+- ✅ **Separation of Concerns** - каждый слой отвечает за свою область
+- ✅ **Dependency Inversion** - зависимости направлены к центру (Domain)
+- ✅ **Testability** - легко тестировать с mock объектами
+- ✅ **Maintainability** - файлы < 300 строк, легко понять
+- ✅ **Scalability** - легко добавлять новые Use Cases
+
+**Multithreading (FreeRTOS):**
+- ⚡ **Task 1 (Core 0, Priority 2)**: Gait Control - обновление походки (20Hz)
+- ⚡ **Task 2 (Core 1, Priority 1)**: Web Server - WebSocket + HTTP
+- ⚡ **Task 3 (Core 0, Priority 0)**: Battery Monitor - мониторинг батареи
+
+**Performance:**
+- 🚀 Истинная многозадачность на 2 ядрах ESP32
+- 🚀 Неблокирующая архитектура
+- 🚀 Priority-based scheduling
 
 ---
 
