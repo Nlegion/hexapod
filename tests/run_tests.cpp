@@ -1,6 +1,7 @@
 // Главный файл для запуска тестов гексапода
 #include "test_framework.h"
 #include "test_hexapod.cpp"
+#include "test_domain_services.h"
 
 int main() {
     std::cout << "🕷️ HEXAPOD TESTING SYSTEM" << std::endl;

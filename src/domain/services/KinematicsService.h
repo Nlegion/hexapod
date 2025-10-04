@@ -1,7 +1,7 @@
 #pragma once
 #include "IKinematicsService.h"
-#include "core/Config.h"
-#include "core/Logger.h"
+#include "../../core/Config.h"
+#include "../../core/Logger.h"
 #include <math.h>
 
 // ═══════════════════════════════════════════════════════════════

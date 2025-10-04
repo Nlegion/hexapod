@@ -397,6 +397,21 @@ const char PROGMEM PAGE_HTML[] = R"=====(
             </div>
         </div>
         
+        <!-- Gait Speed Control - теперь ДО Movement Control -->
+        <div class="control-section">
+             <h3>🏃 Gait Speed Control</h3>
+             
+             <!-- Toggle Switch для Fast/Slow -->
+             <div class="speed-toggle-container">
+                 <span class="speed-label">🐌 Slow</span>
+                 <label class="speed-switch">
+                     <input type="checkbox" id="speedToggle" onchange="toggleSpeed()">
+                     <span class="speed-slider"></span>
+                 </label>
+                 <span class="speed-label">🏃‍♂️ Fast</span>
+             </div>
+        </div>
+
         <div class="control-section">
             <h2>Movement Control</h2>
             <div class="control-grid">
@@ -410,29 +425,6 @@ const char PROGMEM PAGE_HTML[] = R"=====(
                 <button class="movement" onclick="send('BWD')">↓</button>
                 <button></button>
             </div>
-            
-             <!-- Стильный переключатель скорости походки -->
-             <div class="speed-controls" style="margin-top: 20px; text-align: center;">
-                 <h3>🏃 Gait Speed Control</h3>
-                 
-                 <!-- Toggle Switch для Fast/Slow -->
-                 <div class="speed-toggle-container">
-                     <span class="speed-label">🐌 Slow</span>
-                     <label class="speed-switch">
-                         <input type="checkbox" id="speedToggle" onchange="toggleSpeed()">
-                         <span class="speed-slider"></span>
-                     </label>
-                     <span class="speed-label">🏃‍♂️ Fast</span>
-                 </div>
-                 
-                 <!-- Дополнительная кнопка Normal -->
-                 <div style="margin-top: 15px;">
-                     <button class="movement" onclick="setNormalSpeed()" style="background: #007bff; padding: 8px 16px;">🚶‍♂️ Normal Speed</button>
-                 </div>
-                 
-                 <!-- Индикатор текущей скорости -->
-                 <div id="speed-indicator" style="margin-top: 10px; font-weight: bold; color: #007bff;">Current: Normal</div>
-             </div>
         </div>
 
         <div class="control-section">
@@ -448,32 +440,26 @@ const char PROGMEM PAGE_HTML[] = R"=====(
         <div class="control-section">
             <h2>📐 Body Adjustments</h2>
             <div class="test-grid">
-                <button class="test" onclick="send('BODY_UP')" style="background: #ff5722;">⬆️ Higher</button>
+                <button class="test" onclick="send('LEAN_RIGHT')" style="background: #ff5722;">⬆️ Higher</button>
                 <button class="test" onclick="send('HEAD_UP')" style="background: #ff5722;">🔼 Head Up</button>
                 <button class="test" onclick="send('TWIST_LEFT')" style="background: #ff5722;">↶ Twist L</button>
-                <button class="test" onclick="send('LEAN_LEFT')" style="background: #ff5722;">⬅️ Lean L</button>
+                <button class="test" onclick="send('BODY_DOWN')" style="background: #ff5722;">⬅️ Lean L</button>
             </div>
             <div class="test-grid" style="margin-top: 10px;">
-                <button class="test" onclick="send('BODY_DOWN')" style="background: #ff5722;">⬇️ Lower</button>
+                <button class="test" onclick="send('LEAN_LEFT')" style="background: #ff5722;"> ⬇️ Lower</button>
                 <button class="test" onclick="send('HEAD_DOWN')" style="background: #ff5722;">🔽 Head Down</button>
                 <button class="test" onclick="send('TWIST_RIGHT')" style="background: #ff5722;">↷ Twist R</button>
-                <button class="test" onclick="send('LEAN_RIGHT')" style="background: #ff5722;">➡️ Lean R</button>
+                <button class="test" onclick="send('BODY_UP')" style="background: #ff5722;">➡️ Lean R</button>
             </div>
         </div>
 
         <div class="control-section">
             <h2>Diagnostic Tests</h2>
             <div class="test-grid">
-                <button class="diagnostic" onclick="send('CALIBRATE')">Calibrate</button>
                 <button class="diagnostic" onclick="send('DIAGNOSTIC')">Full Test</button>
+                <button class="diagnostic" onclick="send('JOINT_TEST')">Joint Directions</button>
                 <button class="diagnostic" onclick="send('RESET')">Reset All</button>
                 <button class="test" onclick="send('TRIPOD_TEST')">Tripod Test</button>
-            </div>
-            <div class="test-grid" style="margin-top: 10px;">
-                <button class="diagnostic" onclick="send('JOINT_TEST')">Joint Directions</button>
-                <button class="diagnostic" onclick="send('BATTERY_CHECK')" style="background: #17a2b8;">🔋 Battery Check</button>
-                <button></button>
-                <button></button>
             </div>
             <div style="margin-top: 15px; text-align: center;">
                 <button class="stop" onclick="send('EMERGENCY')" style="font-size: 18px; padding: 15px 30px;">
@@ -688,36 +674,16 @@ const char PROGMEM PAGE_HTML[] = R"=====(
          // Функция переключения скорости Fast/Slow
          function toggleSpeed() {
              const toggle = document.getElementById('speedToggle');
-             const indicator = document.getElementById('speed-indicator');
              
              if (toggle.checked) {
                  // Включен = Fast
                  send('FAST');
-                 indicator.textContent = 'Current: Fast 🏃‍♂️';
-                 indicator.style.color = '#ff6b35';
-                 indicator.style.background = '#fff3cd';
                  console.log("Speed switched to FAST");
              } else {
-                 // Выключен = Slow
+                 // Выключен = Slow  
                  send('SLOW');
-                 indicator.textContent = 'Current: Slow 🐌';
-                 indicator.style.color = '#6c757d';
-                 indicator.style.background = '#f8f9fa';
                  console.log("Speed switched to SLOW");
              }
-         }
-         
-         // Улучшенная функция для установки нормальной скорости
-         function setNormalSpeed() {
-             const toggle = document.getElementById('speedToggle');
-             const indicator = document.getElementById('speed-indicator');
-             
-             toggle.checked = false; // Сбрасываем переключатель в среднее положение
-             send('NORMAL');
-             indicator.textContent = 'Current: Normal 🚶‍♂️';
-             indicator.style.color = '#007bff';
-             indicator.style.background = '#e9ecef';
-             console.log("Speed set to NORMAL");
          }
 
         connect();

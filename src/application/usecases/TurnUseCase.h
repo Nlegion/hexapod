@@ -1,8 +1,8 @@
 #pragma once
-#include "domain/services/IGaitService.h"
-#include "domain/services/ISafetyService.h"
-#include "core/Types.h"
-#include "core/Logger.h"
+#include "../../domain/services/IGaitService.h"
+#include "../../domain/services/ISafetyService.h"
+#include "../../core/Types.h"
+#include "../../core/Logger.h"
 #include <memory>
 
 // ═══════════════════════════════════════════════════════════════

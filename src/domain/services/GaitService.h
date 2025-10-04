@@ -2,10 +2,10 @@
 #include "IGaitService.h"
 #include "IKinematicsService.h"
 #include "ISafetyService.h"
-#include "domain/repositories/IServoRepository.h"
-#include "domain/entities/Body.h"
-#include "core/Config.h"
-#include "core/Logger.h"
+#include "../repositories/IServoRepository.h"
+#include "../entities/Body.h"
+#include "../../core/Config.h"
+#include "../../core/Logger.h"
 #include <memory>
 
 // ═══════════════════════════════════════════════════════════════
@@ -113,7 +113,7 @@ public:
     // ═══════════════════════════════════════════════════════════
 
     void setSpeed(float speed) override {
-        speed_ = constrain(speed, 0.0f, 1.0f);
+        speed_ = constrainFloat(speed, 0.0f, 1.0f);
         Core::Logger::log(Core::Logger::INFO, "Speed set to: %.2f", speed_);
     }
 
@@ -133,6 +133,13 @@ private:
     int currentStep_;
     float speed_;
     unsigned long lastStepTime_;
+
+    // Helper для constrain (чтобы избежать конфликта с Arduino macro)
+    inline float constrainFloat(float value, float min, float max) {
+        if (value < min) return min;
+        if (value > max) return max;
+        return value;
+    }
 
     // ═══════════════════════════════════════════════════════════
     // PRIVATE METHODS
@@ -226,12 +233,6 @@ private:
 
         // Отправляем команды сервоприводам
         servos_->setLegPosition(leg->getId(), pulses, Core::Config::DEFAULT_TIME);
-    }
-
-    static float constrain(float value, float min, float max) {
-        if (value < min) return min;
-        if (value > max) return max;
-        return value;
     }
 };
 

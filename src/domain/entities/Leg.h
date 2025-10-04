@@ -1,6 +1,6 @@
 #pragma once
-#include "core/Types.h"
-#include "core/Config.h"
+#include "../../core/Types.h"
+#include "../../core/Config.h"
 
 // ═══════════════════════════════════════════════════════════════
 // LEG ENTITY - Сущность "Нога" (Domain Logic)

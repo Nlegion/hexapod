@@ -1,7 +1,7 @@
 #pragma once
-#include "domain/repositories/IServoRepository.h"
-#include "core/Config.h"
-#include "core/Logger.h"
+#include "../../domain/repositories/IServoRepository.h"
+#include "../../core/Config.h"
+#include "../../core/Logger.h"
 #include <Arduino.h>
 
 // ═══════════════════════════════════════════════════════════════
@@ -60,7 +60,7 @@ public:
         if (pulse < Core::Config::MIN_PULSE || pulse > Core::Config::MAX_PULSE) {
             Core::Logger::log(Core::Logger::WARNING, 
                 "Pulse out of range: %d (constraining)", pulse);
-            pulse = constrain(pulse, Core::Config::MIN_PULSE, Core::Config::MAX_PULSE);
+            pulse = constrain(pulse, (int)Core::Config::MIN_PULSE, (int)Core::Config::MAX_PULSE);
         }
 
         // Формируем команду: #<channel>P<pulse>T<time>\r\n
@@ -125,11 +125,7 @@ private:
     bool isInitialized_;
     int cachedPositions_[32];  // Кэш последних позиций
 
-    static int constrain(int value, int min, int max) {
-        if (value < min) return min;
-        if (value > max) return max;
-        return value;
-    }
+    // Используем Arduino macro constrain() напрямую, не создаем свою функцию
 };
 
 } // namespace Infrastructure

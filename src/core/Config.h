@@ -43,6 +43,17 @@ constexpr int LEG_FORWARD_DIRECTIONS[TOTAL_LEGS] = {
     /*RL*/ +1, /*ML*/ +1, /*FL*/ +1
 };
 
+// Направления сервоприводов для каждого сустава (зеркальное расположение!)
+// Формат: [нога][сустав] где сустав: 0=COXA, 1=FEMUR, 2=TIBIA
+constexpr int LEG_LIFT_DIRECTIONS[TOTAL_LEGS][3] = {
+    /*FR*/ { +1, +1, -1 },  // Правые ноги: COXA +1, FEMUR +1, TIBIA -1
+    /*MR*/ { +1, +1, -1 },
+    /*RR*/ { +1, +1, -1 },
+    /*RL*/ { -1, +1, -1 },  // Левые ноги: COXA -1, FEMUR +1, TIBIA -1 (зеркально!)
+    /*ML*/ { -1, +1, -1 },
+    /*FL*/ { -1, +1, -1 }
+};
+
 // Группы ног для tripod gait
 constexpr LegID TRIPOD_GROUP_1[] = { LEG_FRONT_RIGHT, LEG_MIDDLE_LEFT, LEG_REAR_RIGHT };
 constexpr LegID TRIPOD_GROUP_2[] = { LEG_FRONT_LEFT, LEG_MIDDLE_RIGHT, LEG_REAR_LEFT };

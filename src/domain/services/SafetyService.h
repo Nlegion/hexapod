@@ -1,7 +1,7 @@
 #pragma once
 #include "ISafetyService.h"
-#include "core/Config.h"
-#include "core/Logger.h"
+#include "../../core/Config.h"
+#include "../../core/Logger.h"
 
 // ═══════════════════════════════════════════════════════════════
 // SAFETY SERVICE IMPLEMENTATION

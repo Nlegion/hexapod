@@ -1,7 +1,7 @@
 #pragma once
-#include "domain/repositories/IBatteryRepository.h"
-#include "core/Config.h"
-#include "core/Logger.h"
+#include "../../domain/repositories/IBatteryRepository.h"
+#include "../../core/Config.h"
+#include "../../core/Logger.h"
 #include <Arduino.h>
 
 // ═══════════════════════════════════════════════════════════════

@@ -7,7 +7,7 @@ Production-ready hexapod robot with tripod gait locomotion, inverse kinematics, 
 **Current Version:** 4.0 (Clean Architecture + FreeRTOS)  
 **Status:** ✅ Production Ready  
 **Architecture:** Clean Architecture + Multithreading  
-**Tests:** ✅ **29/29 PASSED** (последний запуск: успешно)
+**Tests:** ✅ **38/38 PASSED** (включая Clean Architecture validation)
 
 ---
 
@@ -72,7 +72,9 @@ chmod +x run_tests.sh
 ./run_tests.sh
 ```
 
-Expected: **29/29 PASSED** ✅
+Expected: **38/38 PASSED** ✅
+- 29 legacy integration tests
+- 9 Clean Architecture validation tests
 
 ### 4. First Run
 1. Connect to WiFi network or AP mode (`Hexapod_Config`)

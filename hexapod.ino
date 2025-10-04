@@ -17,16 +17,18 @@
 #include "src/core/Logger.h"
 #include "src/di/Container.h"
 #include "src/application/RobotController.h"
+#include "src/presentation/web/WebController.h"
+#include "src/presentation/web/WebSocketController.h"
 
-// Старый HTML interface (пока используем старый)
+// HTML interface
 #include "page_html.h"
 
 // ═══════════════════════════════════════════════════════════════
 // NETWORK CONFIGURATION
 // ═══════════════════════════════════════════════════════════════
 
-const char* SSID = "YOUR_WIFI_SSID";      // Замените на ваш WiFi
-const char* PASSWORD = "YOUR_PASSWORD";    // Замените на ваш пароль
+const char* SSID = "Homenet_plus";      // Замените на ваш WiFi
+const char* PASSWORD = "29pronto69";    // Замените на ваш пароль
 
 // ═══════════════════════════════════════════════════════════════
 // GLOBAL OBJECTS
@@ -41,6 +43,8 @@ DI::Container container;
 // Controllers
 std::shared_ptr<Application::RobotController> robotController;
 std::shared_ptr<Infrastructure::BatteryMonitor> batteryMonitor;
+std::shared_ptr<Presentation::WebController> webController;
+std::shared_ptr<Presentation::WebSocketController> wsController;
 
 // ═══════════════════════════════════════════════════════════════
 // FREERTOS TASK HANDLES
@@ -79,11 +83,9 @@ void webTask(void* parameter) {
     Core::Logger::log(Core::Logger::INFO, "🌐 Web task started on core %d", xPortGetCoreID());
     
     while (true) {
-        // Обработка WebSocket соединений
-        webSocket.loop();
-        
-        // Обработка HTTP запросов
-        server.handleClient();
+        // Обработка через WebController
+        wsController->loop();
+        webController->handleClients();
         
         // Небольшая задержка
         vTaskDelay(pdMS_TO_TICKS(10));  // 10ms
@@ -103,8 +105,16 @@ void batteryTask(void* parameter) {
         // Обновляем Safety Service
         container.getSafetyService()->setBatteryStatus(status);
         
-        // Отправляем статус через WebSocket
-        sendBatteryStatus(status);
+        // Отправляем статус через WebSocketController
+        char buffer[128];
+        snprintf(buffer, sizeof(buffer), 
+            "BATTERY:%.2f:%.1f:%d:%d",
+            status.voltage,
+            status.percentage,
+            status.isLow ? 1 : 0,
+            status.isCritical ? 1 : 0
+        );
+        wsController->sendBatteryStatus(buffer);
         
         // Проверяем критический уровень
         if (status.isCritical) {
@@ -118,59 +128,14 @@ void batteryTask(void* parameter) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// WEBSOCKET HANDLER
+// WEBSOCKET HANDLER (теперь через WebSocketController)
 // ═══════════════════════════════════════════════════════════════
 
-void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
-    switch (type) {
-        case WStype_DISCONNECTED:
-            Core::Logger::log(Core::Logger::INFO, "WebSocket [%u] disconnected", num);
-            break;
-            
-        case WStype_CONNECTED: {
-            IPAddress ip = webSocket.remoteIP(num);
-            Core::Logger::log(Core::Logger::INFO, 
-                "WebSocket [%u] connected from %d.%d.%d.%d",
-                num, ip[0], ip[1], ip[2], ip[3]);
-            
-            // Отправляем текущий статус
-            webSocket.sendTXT(num, robotController->getStatusJSON());
-            break;
-        }
-            
-        case WStype_TEXT: {
-            String command = String((char*)payload);
-            Core::Logger::log(Core::Logger::INFO, 
-                "WebSocket [%u] command: %s", num, command.c_str());
-            
-            // Обрабатываем команду через RobotController
-            robotController->handleCommand(command.c_str());
-            
-            // Отправляем обновленный статус
-            webSocket.sendTXT(num, robotController->getStatusJSON());
-            break;
-        }
-        
-        default:
-            break;
-    }
-}
+// Обработчик будет инициализирован в WebSocketController
 
 // ═══════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════
-
-void sendBatteryStatus(const Core::BatteryStatus& status) {
-    char buffer[128];
-    snprintf(buffer, sizeof(buffer), 
-        "BATTERY:%.2f:%.1f:%d:%d",
-        status.voltage,
-        status.percentage,
-        status.isLow ? 1 : 0,
-        status.isCritical ? 1 : 0
-    );
-    webSocket.broadcastTXT(buffer);
-}
 
 void setupWiFi() {
     Core::Logger::log(Core::Logger::INFO, "Connecting to WiFi: %s", SSID);
@@ -195,25 +160,21 @@ void setupWiFi() {
 }
 
 void setupWebServer() {
-    // Главная страница
-    server.on("/", []() {
-        server.send_P(200, "text/html", html_page);
-    });
+    // Создаем Web Controllers через Presentation Layer
+    webController = std::make_shared<Presentation::WebController>(
+        server,
+        robotController,
+        PAGE_HTML
+    );
     
-    // API endpoint для статуса
-    server.on("/api/status", []() {
-        server.send(200, "application/json", robotController->getStatusJSON());
-    });
+    wsController = std::make_shared<Presentation::WebSocketController>(
+        webSocket,
+        robotController
+    );
     
-    server.begin();
-    Core::Logger::log(Core::Logger::INFO, "✅ Web server started on port %d", 
-        Core::Config::WEB_SERVER_PORT);
-    
-    // WebSocket
-    webSocket.begin();
-    webSocket.onEvent(webSocketEvent);
-    Core::Logger::log(Core::Logger::INFO, "✅ WebSocket started on port %d", 
-        Core::Config::WEBSOCKET_PORT);
+    // Инициализируем
+    webController->initialize();
+    wsController->initialize();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -307,4 +268,3 @@ void loop() {
     // Loop() можно использовать для диагностики
     vTaskDelay(pdMS_TO_TICKS(1000));
 }
-

@@ -1,6 +1,6 @@
 #pragma once
-#include "core/Types.h"
-#include "domain/entities/Leg.h"
+#include "../../core/Types.h"
+#include "../entities/Leg.h"
 #include <memory>
 
 // ═══════════════════════════════════════════════════════════════
