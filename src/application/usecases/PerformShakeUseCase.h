@@ -46,34 +46,33 @@ public:
         int femur_neutral = Core::Config::NEUTRAL + leg->getFemurOffset();
         int tibia_neutral = Core::Config::NEUTRAL + leg->getTibiaOffset();
 
-        // === ШАГ 1: Поднять ногу МАКСИМАЛЬНО высоко и вынести вперёд ===
+        // === ШАГ 1: Вытянуть ногу вперёд и опустить вниз ===
+        // COXA - максимально вперёд (к пользователю)
+        // FEMUR - МАКСИМУМ ВНИЗ
+        // TIBIA - МАКСИМУМ ВНИЗ
         Core::ServoPulses step1(
-            safety_->constrainPulse(coxa_neutral + (200 * coxaDir)),  // Вперёд (увеличено!)
-            safety_->constrainPulse(femur_neutral + (350 * femurDir)), // Очень высоко!
-            safety_->constrainPulse(tibia_neutral + (300 * tibiaDir))  // Выпрямить
+            safety_->constrainPulse(coxa_neutral + (450 * coxaDir)),   // МАКСИМАЛЬНО вперёд!
+            safety_->constrainPulse(femur_neutral - (450 * femurDir)), // МАКСИМУМ ВНИЗ!
+            safety_->constrainPulse(tibia_neutral - (450 * tibiaDir))  // МАКСИМУМ ВНИЗ!
         );
-        servos_->setLegPosition(Core::LEG_FRONT_RIGHT, step1, 500);
-        delay(500);
+        servos_->setLegPosition(Core::LEG_FRONT_RIGHT, step1, 600);
+        delay(600);
 
-        // === ШАГ 2: "Пожатие" - быстрые движения вверх-вниз (увеличена амплитуда!) ===
+        // === ШАГ 2: "Пожатие" - ТОЛЬКО TIBIA дёргается вверх-вниз ===
+        // COXA и FEMUR остаются на месте!
         for (int i = 0; i < 5; i++) {
-            // Вверх
+            // TIBIA вверх (от максимума вниз)
             Core::ServoPulses up(
-                step1.coxa,
-                safety_->constrainPulse(femur_neutral + (400 * femurDir)),
-                safety_->constrainPulse(tibia_neutral + (250 * tibiaDir))
+                step1.coxa,   // COXA остаётся вперёд
+                step1.femur,  // FEMUR остаётся внизу
+                safety_->constrainPulse(tibia_neutral - (200 * tibiaDir))  // TIBIA вверх
             );
-            servos_->setLegPosition(Core::LEG_FRONT_RIGHT, up, 150);
-            delay(150);
+            servos_->setLegPosition(Core::LEG_FRONT_RIGHT, up, 180);
+            delay(180);
 
-            // Вниз
-            Core::ServoPulses down(
-                step1.coxa,
-                safety_->constrainPulse(femur_neutral + (250 * femurDir)),
-                safety_->constrainPulse(tibia_neutral + (400 * tibiaDir))
-            );
-            servos_->setLegPosition(Core::LEG_FRONT_RIGHT, down, 150);
-            delay(150);
+            // TIBIA вниз (обратно в максимум)
+            servos_->setLegPosition(Core::LEG_FRONT_RIGHT, step1, 180);
+            delay(180);
         }
 
         // === ШАГ 3: Вернуть в нейтраль ===
