@@ -256,22 +256,29 @@ void perform_shake_gesture() {
   int femur_neutral = NEUTRAL + LEG_OFFSETS[leg][FEMUR];
   int tibia_neutral = NEUTRAL + LEG_OFFSETS[leg][TIBIA];
   
-  // Поднять ногу вперёд
-  SafetySystem::set_servo(coxa_servo, coxa_neutral + 80);
-  SafetySystem::set_servo(femur_servo, femur_neutral + 200);
-  SafetySystem::set_servo(tibia_servo, tibia_neutral - 150);
-  delay(300);
+  // ═══════════════════════════════════════════════════════════
+  // SHAKE (пожатие лапы): поднять ногу и трясти ВСЕЙ ногой
+  // ═══════════════════════════════════════════════════════════
   
-  // Тряска (быстрые движения вверх-вниз)
-  for (int i = 0; i < 3; i++) {
-    SafetySystem::set_servo(tibia_servo, tibia_neutral - 200);
-    delay(150);
-    SafetySystem::set_servo(tibia_servo, tibia_neutral - 100);
-    delay(150);
+  // Шаг 1: Поднять ногу высоко и вынести вперёд (как будто протягиваем)
+  SafetySystem::set_servo(coxa_servo, constrain(coxa_neutral + 150, MIN_PULSE, MAX_PULSE));   // Вперёд
+  SafetySystem::set_servo(femur_servo, constrain(femur_neutral + 250, MIN_PULSE, MAX_PULSE));  // Высоко
+  SafetySystem::set_servo(tibia_servo, constrain(tibia_neutral - 250, MIN_PULSE, MAX_PULSE));  // Выпрямить
+  delay(400);
+  
+  // Шаг 2: "Пожатие" - быстрые движения FEMUR вверх-вниз (имитация пожатия)
+  for (int i = 0; i < 4; i++) {
+    SafetySystem::set_servo(femur_servo, constrain(femur_neutral + 300, MIN_PULSE, MAX_PULSE));
+    SafetySystem::set_servo(tibia_servo, constrain(tibia_neutral - 200, MIN_PULSE, MAX_PULSE));
+    delay(120);
+    SafetySystem::set_servo(femur_servo, constrain(femur_neutral + 200, MIN_PULSE, MAX_PULSE));
+    SafetySystem::set_servo(tibia_servo, constrain(tibia_neutral - 300, MIN_PULSE, MAX_PULSE));
+    delay(120);
   }
   
-  // Вернуть ногу в нейтраль
+  // Шаг 3: Медленно вернуть ногу в нейтраль
   SafetySystem::set_servo(coxa_servo, coxa_neutral);
+  delay(150);
   SafetySystem::set_servo(femur_servo, femur_neutral);
   SafetySystem::set_servo(tibia_servo, tibia_neutral);
   delay(300);
@@ -280,10 +287,11 @@ void perform_shake_gesture() {
 }
 
 void perform_wave_gesture() {
-  Logger::log(Logger::INFO, "👋 Performing WAVE gesture (Front Right leg)");
+  Logger::log(Logger::INFO, "👋 Performing WAVE gesture (Front LEFT leg for better visibility)");
   is_moving = false;
   
-  int leg = LEG_FRONT_RIGHT;
+  // Используем ЛЕВУЮ переднюю ногу - лучше видно с фронта!
+  int leg = LEG_FRONT_LEFT;
   int coxa_servo = LEG_SERVO_MAP[leg][COXA];
   int femur_servo = LEG_SERVO_MAP[leg][FEMUR];
   int tibia_servo = LEG_SERVO_MAP[leg][TIBIA];
@@ -292,21 +300,28 @@ void perform_wave_gesture() {
   int femur_neutral = NEUTRAL + LEG_OFFSETS[leg][FEMUR];
   int tibia_neutral = NEUTRAL + LEG_OFFSETS[leg][TIBIA];
   
-  // Поднять ногу вверх
-  SafetySystem::set_servo(femur_servo, femur_neutral + 150);
-  SafetySystem::set_servo(tibia_servo, tibia_neutral + 150);
-  delay(300);
+  // ═══════════════════════════════════════════════════════════
+  // WAVE (махание): поднять ногу ВЫСОКО и махать из стороны в сторону
+  // ═══════════════════════════════════════════════════════════
   
-  // Махание (движения COXA влево-вправо)
-  for (int i = 0; i < 3; i++) {
-    SafetySystem::set_servo(coxa_servo, coxa_neutral + 100);
-    delay(200);
-    SafetySystem::set_servo(coxa_servo, coxa_neutral - 100);
-    delay(200);
+  // Шаг 1: Поднять ногу МАКСИМАЛЬНО высоко
+  SafetySystem::set_servo(femur_servo, constrain(femur_neutral + 300, MIN_PULSE, MAX_PULSE));  // Очень высоко!
+  SafetySystem::set_servo(tibia_servo, constrain(tibia_neutral + 250, MIN_PULSE, MAX_PULSE));  // Подогнуть
+  delay(400);
+  
+  // Шаг 2: Махание COXA с БОЛЬШОЙ амплитудой (влево-вправо)
+  for (int i = 0; i < 4; i++) {
+    // Влево (для левой ноги это означает направление наружу)
+    SafetySystem::set_servo(coxa_servo, constrain(coxa_neutral - 200, MIN_PULSE, MAX_PULSE));
+    delay(180);
+    // Вправо (для левой ноги это означает направление вовнутрь)
+    SafetySystem::set_servo(coxa_servo, constrain(coxa_neutral + 150, MIN_PULSE, MAX_PULSE));
+    delay(180);
   }
   
-  // Вернуть в нейтраль
+  // Шаг 3: Вернуть COXA в центр, затем медленно опустить ногу
   SafetySystem::set_servo(coxa_servo, coxa_neutral);
+  delay(200);
   SafetySystem::set_servo(femur_servo, femur_neutral);
   SafetySystem::set_servo(tibia_servo, tibia_neutral);
   delay(300);

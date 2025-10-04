@@ -244,6 +244,76 @@ TEST(trajectory_progression) {
     ASSERT_TRUE(SUPPORT_TRAJ[3][COXA] < SUPPORT_TRAJ[0][COXA]); // Движение назад
 }
 
+// ===== НОВЫЕ ТЕСТЫ ДЛЯ ВЕРСИИ 3.0 =====
+
+TEST(trajectory_amplitude_sufficient) {
+    // Проверяем, что амплитуда COXA достаточна (минимум ±150)
+    int transfer_min_coxa = 10000, transfer_max_coxa = 0;
+    int support_min_coxa = 10000, support_max_coxa = 0;
+    
+    for (int step = 0; step < 4; step++) {
+        if (TRANSFER_TRAJ[step][COXA] < transfer_min_coxa) transfer_min_coxa = TRANSFER_TRAJ[step][COXA];
+        if (TRANSFER_TRAJ[step][COXA] > transfer_max_coxa) transfer_max_coxa = TRANSFER_TRAJ[step][COXA];
+        if (SUPPORT_TRAJ[step][COXA] < support_min_coxa) support_min_coxa = SUPPORT_TRAJ[step][COXA];
+        if (SUPPORT_TRAJ[step][COXA] > support_max_coxa) support_max_coxa = SUPPORT_TRAJ[step][COXA];
+    }
+    
+    int transfer_amplitude = (transfer_max_coxa - NEUTRAL) - (transfer_min_coxa - NEUTRAL);
+    int support_amplitude = (support_max_coxa - NEUTRAL) - (support_min_coxa - NEUTRAL);
+    
+    std::cout << "  TRANSFER amplitude: " << transfer_amplitude << " (min: " << transfer_min_coxa << ", max: " << transfer_max_coxa << ")" << std::endl;
+    std::cout << "  SUPPORT amplitude: " << support_amplitude << " (min: " << support_min_coxa << ", max: " << support_max_coxa << ")" << std::endl;
+    
+    // Амплитуда должна быть минимум 300 (±150)
+    ASSERT_TRUE(transfer_amplitude >= 300);
+    ASSERT_TRUE(support_amplitude >= 300);
+}
+
+TEST(trajectory_symmetry) {
+    // Проверяем симметрию TRANSFER и SUPPORT
+    // TRANSFER должна начинаться где SUPPORT заканчивается
+    
+    int transfer_start_coxa = TRANSFER_TRAJ[0][COXA];
+    int support_end_coxa = SUPPORT_TRAJ[3][COXA];
+    
+    int transfer_end_coxa = TRANSFER_TRAJ[3][COXA];
+    int support_start_coxa = SUPPORT_TRAJ[0][COXA];
+    
+    std::cout << "  TRANSFER: " << transfer_start_coxa << " -> " << transfer_end_coxa << std::endl;
+    std::cout << "  SUPPORT:  " << support_start_coxa << " -> " << support_end_coxa << std::endl;
+    
+    // Проверяем циклическую симметрию (начало одного = конец другого)
+    ASSERT_EQ(transfer_start_coxa, support_end_coxa);
+    ASSERT_EQ(transfer_end_coxa, support_start_coxa);
+}
+
+TEST(trajectory_forward_movement_logic) {
+    // Проверяем логику прямолинейного движения
+    
+    // TRANSFER: COXA должна двигаться от НАЗАД (-) к ВПЕРЁД (+)
+    int transfer_coxa_change = TRANSFER_TRAJ[3][COXA] - TRANSFER_TRAJ[0][COXA];
+    ASSERT_TRUE(transfer_coxa_change > 0); // Движение вперёд
+    
+    // SUPPORT: COXA должна двигаться от ВПЕРЁД (+) к НАЗАД (-)
+    int support_coxa_change = SUPPORT_TRAJ[3][COXA] - SUPPORT_TRAJ[0][COXA];
+    ASSERT_TRUE(support_coxa_change < 0); // Движение назад (толкает тело вперёд)
+    
+    std::cout << "  TRANSFER COXA change: " << transfer_coxa_change << " (должно быть >0)" << std::endl;
+    std::cout << "  SUPPORT COXA change: " << support_coxa_change << " (должно быть <0)" << std::endl;
+}
+
+TEST(all_legs_synchronous_forward) {
+    // Проверяем, что LEG_FORWARD_DIRECTIONS одинаковы для всех ног
+    // Это критично для прямолинейного движения!
+    
+    for (int leg = 0; leg < TOTAL_LEGS; leg++) {
+        ASSERT_EQ(LEG_FORWARD_DIRECTIONS[leg], +1);
+    }
+    
+    std::cout << "  ✅ Все ноги используют одинаковое направление (+1) для COXA" << std::endl;
+    std::cout << "  ✅ Это обеспечивает синхронное движение вперёд" << std::endl;
+}
+
 // ===== СИМУЛЯЦИЯ TRIPOD_TEST =====
 TEST(simulate_tripod_test) {
     std::cout << "\n" << std::string(60, '=') << std::endl;
